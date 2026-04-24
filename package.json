@@ -1,0 +1,35 @@
+{
+  "name": "the-bridge",
+  "version": "0.1.0",
+  "description": "A configurable, dual-mode control room dashboard for complex systems",
+  "main": "src/index.js",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.js",
+    "./theme": "./src/theme.js",
+    "./types": "./src/types.js"
+  },
+  "scripts": {
+    "dev": "cd examples/dev-server && npm run dev",
+    "setup": "bash scripts/onboard.sh"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "keywords": [
+    "react",
+    "dashboard",
+    "control-room",
+    "agentic",
+    "devops",
+    "platform-engineering",
+    "operations"
+  ],
+  "author": "Barney Rhys Jones",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/barney-rj/the-bridge"
+  }
+}
