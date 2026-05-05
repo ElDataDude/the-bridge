@@ -7,6 +7,9 @@ examples/dev-server/node_modules/
 # User config (not shipped)
 examples/my-config.js
 
+# Harness generated output (created by boot prompt)
+harness/generated/
+
 # Build output
 dist/
 build/

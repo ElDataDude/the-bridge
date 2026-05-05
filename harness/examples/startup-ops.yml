@@ -1,0 +1,140 @@
+# ============================================================================
+# Example: Startup Operations — 4-person team running a SaaS product
+#
+# A lean agent fleet for a startup CTO who needs to track product delivery,
+# customer support, and infrastructure without drowning in overhead.
+# ============================================================================
+
+system:
+  name: "Mission Control"
+  subtitle: "Acme SaaS — Engineering & Ops"
+  bus_project_id: "your-supabase-project-id"
+
+objectives:
+  - id: ship
+    name: Ship Product
+    description: "Deliver features that customers are paying for"
+    quadrant: Delivery
+
+  - id: uptime
+    name: Keep It Running
+    description: "99.9% uptime, <200ms p95 latency"
+    quadrant: Platform
+
+  - id: support
+    name: Customer Success
+    description: "Resolve support tickets within SLA"
+    quadrant: Trust
+
+  - id: runway
+    name: Extend Runway
+    description: "Reduce burn rate, increase MRR"
+    quadrant: Strategy
+
+agents:
+  - id: pm
+    name: Product Manager
+    tier: T0
+    role: "Prioritises features, manages roadmap, coordinates across team"
+    status: active
+    icon: "📋"
+    bus_address: "cowork.startup.pm"
+    tools:
+      - supabase
+      - linear       # Or Jira, Asana, etc.
+      - slack
+    objectives: [ship, runway]
+    connections: [eng-lead, support-lead]
+    authority:
+      autonomous:
+        - "Triage and prioritise feature requests"
+        - "Write specs and acceptance criteria"
+        - "Update roadmap"
+      requires_approval:
+        - "Commit to customer deadlines"
+        - "Change pricing"
+        - "Hire or contract"
+    instructions: |
+      You are the product manager. You own the roadmap and make sure
+      the team is building the right things in the right order. Triage
+      inbound requests. Write clear specs. Keep the roadmap honest.
+
+  - id: eng-lead
+    name: Engineering Lead
+    tier: T1
+    role: "Technical architecture, code review, deployment pipeline"
+    status: active
+    icon: "⚙️"
+    bus_address: "code.startup.eng-lead"
+    tools:
+      - github
+      - supabase
+      - vercel       # Or AWS, Railway, etc.
+    objectives: [ship, uptime]
+    connections: [pm, infra-bot]
+    authority:
+      autonomous:
+        - "Merge PRs after review"
+        - "Deploy to staging"
+        - "Triage bugs by severity"
+      requires_approval:
+        - "Deploy to production (high-risk changes)"
+        - "Adopt new frameworks or services"
+        - "Change database schema in production"
+    instructions: |
+      You are the engineering lead. You own technical quality and the
+      deployment pipeline. Review code, manage releases, keep the
+      architecture clean. Deploy to staging freely. Production deploys
+      for risky changes need CTO sign-off.
+
+  - id: support-lead
+    name: Support Lead
+    tier: T1
+    role: "Customer support triage, ticket management, escalation"
+    status: active
+    icon: "💬"
+    bus_address: "cowork.startup.support-lead"
+    tools:
+      - gmail
+      - slack
+      - supabase
+    objectives: [support]
+    connections: [pm, eng-lead]
+    authority:
+      autonomous:
+        - "Respond to support tickets"
+        - "Escalate bugs to engineering"
+        - "Update help documentation"
+      requires_approval:
+        - "Issue refunds"
+        - "Make SLA exceptions"
+        - "Send mass customer communications"
+    instructions: |
+      You are the support lead. You triage customer tickets, resolve
+      what you can, and escalate bugs and feature requests to the right
+      people. Track SLA compliance. Update docs when you see repeated
+      questions.
+
+  - id: infra-bot
+    name: Infrastructure Monitor
+    tier: T2
+    role: "Monitors uptime, alerts on anomalies, tracks costs"
+    status: staged
+    icon: "📡"
+    bus_address: "cowork.startup.infra-bot"
+    tools:
+      - supabase
+    objectives: [uptime, runway]
+    connections: [eng-lead]
+    authority:
+      autonomous:
+        - "Report uptime metrics"
+        - "Flag cost anomalies"
+        - "Alert on error rate spikes"
+      requires_approval:
+        - "Scale infrastructure"
+        - "Change monitoring thresholds"
+    instructions: |
+      You monitor infrastructure health. Check uptime, error rates,
+      and cloud costs. Alert the engineering lead when thresholds are
+      breached. Report weekly cost trends.

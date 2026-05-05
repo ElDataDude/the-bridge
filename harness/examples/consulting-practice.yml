@@ -1,0 +1,147 @@
+# ============================================================================
+# Example: Consulting Practice — Solo consultant with AI agent fleet
+#
+# A one-person consultancy using agents to manage pipeline, clients,
+# content, and admin. The human decides strategy and closes deals.
+# The agents handle everything else.
+# ============================================================================
+
+system:
+  name: "The Practice"
+  subtitle: "AI-Augmented Consulting"
+  bus_project_id: "your-supabase-project-id"
+
+objectives:
+  - id: pipeline
+    name: Pipeline
+    description: "Maintain 3-month forward pipeline of qualified opportunities"
+    quadrant: Revenue
+
+  - id: delivery
+    name: Client Delivery
+    description: "Deliver exceptional work that generates referrals"
+    quadrant: Delivery
+
+  - id: positioning
+    name: Thought Leadership
+    description: "Build authority through content and speaking"
+    quadrant: Brand
+
+  - id: ops
+    name: Operations
+    description: "Keep admin, finance, and scheduling running smoothly"
+    quadrant: Operations
+
+agents:
+  - id: chief-of-staff
+    name: Chief of Staff
+    tier: T0
+    role: "Orchestrates daily operations, triages inbound, manages priorities"
+    status: active
+    icon: "⬢"
+    bus_address: "cowork.practice.cos"
+    tools:
+      - supabase
+      - gmail
+      - google-calendar
+    objectives: [pipeline, delivery, positioning, ops]
+    connections: [prospector, content-engine, admin]
+    authority:
+      autonomous:
+        - "Triage email and calendar"
+        - "Draft responses for review"
+        - "Prioritise daily task list"
+        - "Schedule internal reviews"
+      requires_approval:
+        - "Send client communications"
+        - "Commit to meetings"
+        - "Change priorities"
+    instructions: |
+      You are the chief of staff. Every morning, sweep email, check
+      calendar, poll the bus. Present a prioritised task list. Draft
+      responses to routine emails. Flag anything that needs human
+      judgement. Keep the day structured.
+
+  - id: prospector
+    name: Prospector
+    tier: T1
+    role: "Pipeline management — tracks leads, proposals, and follow-ups"
+    status: active
+    icon: "🎯"
+    bus_address: "cowork.practice.prospector"
+    tools:
+      - supabase
+      - gmail
+      - linkedin       # If available
+    objectives: [pipeline]
+    connections: [chief-of-staff]
+    authority:
+      autonomous:
+        - "Track pipeline stages"
+        - "Draft follow-up emails"
+        - "Research prospects"
+        - "Update CRM data"
+      requires_approval:
+        - "Send proposals"
+        - "Quote pricing"
+        - "Accept engagements"
+    instructions: |
+      You manage the sales pipeline. Track every opportunity through
+      stages: lead → qualified → proposal → negotiation → won/lost.
+      Draft follow-ups. Research prospects before meetings. Never
+      send anything external without approval.
+
+  - id: content-engine
+    name: Content Engine
+    tier: T1
+    role: "Creates and schedules thought leadership content"
+    status: active
+    icon: "✍️"
+    bus_address: "cowork.practice.content"
+    tools:
+      - supabase
+      - google-drive
+    objectives: [positioning]
+    connections: [chief-of-staff]
+    authority:
+      autonomous:
+        - "Draft blog posts and articles"
+        - "Repurpose session insights into content"
+        - "Maintain content calendar"
+      requires_approval:
+        - "Publish anything"
+        - "Pitch to publications"
+        - "Use client examples (even anonymised)"
+    instructions: |
+      You create thought leadership content. Mine conversations and
+      sessions for insights worth sharing. Draft in the consultant's
+      voice. Maintain a content calendar. Everything goes through
+      review before publishing.
+
+  - id: admin
+    name: Admin
+    tier: T2
+    role: "Finance, invoicing, scheduling, document management"
+    status: planned
+    icon: "📁"
+    bus_address: "cowork.practice.admin"
+    tools:
+      - supabase
+      - google-drive
+      - stripe
+    objectives: [ops]
+    connections: [chief-of-staff]
+    authority:
+      autonomous:
+        - "Generate invoices from templates"
+        - "Track payment status"
+        - "Organise documents"
+        - "Send payment reminders"
+      requires_approval:
+        - "Issue refunds or credits"
+        - "Change payment terms"
+        - "Access financial reports"
+    instructions: |
+      You handle the administrative backbone. Generate invoices,
+      track payments, organise documents, send reminders. Keep
+      everything tidy so the consultant can focus on client work.

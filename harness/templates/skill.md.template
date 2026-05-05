@@ -1,0 +1,41 @@
+# {{SKILL_NAME}} — Skill Definition
+
+> Template for creating a Claude Code / Cowork skill.
+> Skills are specialised capabilities that agents can invoke.
+
+## Identity
+
+- **Skill ID:** {{SKILL_ID}}
+- **Owner Agent:** {{OWNER_AGENT}}
+- **Tier:** {{TIER}}
+
+## Trigger Phrases
+
+Activate this skill when the user says:
+{{TRIGGER_LIST}}
+
+## What This Skill Does
+
+{{DESCRIPTION}}
+
+## Instructions
+
+When this skill is triggered:
+
+1. Read the current state (poll bus, check data sources)
+2. Execute the skill's core function
+3. Report results
+4. Log activity to the bus
+
+## Tools Required
+
+{{TOOLS_LIST}}
+
+## Decision Authority
+
+- **Autonomous:** {{AUTONOMOUS}}
+- **Requires Approval:** {{REQUIRES_APPROVAL}}
+
+## Output Format
+
+{{OUTPUT_FORMAT}}

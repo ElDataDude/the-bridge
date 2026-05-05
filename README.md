@@ -112,6 +112,40 @@ export default function App() {
 }
 ```
 
+## Agent Harness
+
+The Bridge shows you the dashboard. The **harness** stands up the agents that feed it.
+
+The harness (`harness/` directory) gives you:
+
+- **Agent definitions** — YAML config describing your agent fleet (who, what tier, what authority)
+- **Message bus** — A Postgres table where agents communicate (Supabase or any Postgres)
+- **Boot prompt** — Paste into Claude to auto-generate agent instructions and Bridge config
+- **Decision authority** — Clear boundaries on what agents can do autonomously vs. what needs human approval
+- **Audit trail** — Every inter-agent message is logged
+
+### Quick start (harness)
+
+```bash
+# 1. Define your agents
+cp harness/examples/startup-ops.yml harness/agents.yml
+# Edit to match your world
+
+# 2. Set up the bus
+psql -f harness/bus-schema.sql
+# Or paste into Supabase SQL Editor
+
+# 3. Boot the system
+# Open Claude, paste the contents of harness/BOOT_PROMPT.md
+# Claude reads agents.yml, generates everything, wires it up
+
+# 4. Start operating
+# Open The Bridge with the generated config
+# Start agent sessions with the generated CLAUDE.md files
+```
+
+See `harness/README.md` for the full guide and schema reference.
+
 ## Configuration
 
 ### BridgeConfig Shape
