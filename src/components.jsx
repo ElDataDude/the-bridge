@@ -687,13 +687,14 @@ export const ActionLauncher = ({
   actionLabel = "Assign Work",
   theme: T,
   dispatcher,
+  dispatcherIdentity,
+  dispatcherStatus,
   taskTemplates = [],
   onSubmit,
 }) => {
   const initialTemplate = taskTemplates.find((template) => template.id === item?.template_id) || taskTemplates[0];
-  const draftKey = assignmentDraftKey(dispatcher, item);
   const [templateId, setTemplateId] = useState(initialTemplate?.id || "");
-  const [clientRef, setClientRef] = useState(() => `local-dashboard:${Date.now()}:${crypto.randomUUID?.() || Math.random().toString(16).slice(2)}`);
+  const [clientRef, setClientRef] = useState(() => makeClientRef(dispatcherIdentity));
   const [title, setTitle] = useState(item?.title || item?.name || "");
   const [propertyRef, setPropertyRef] = useState(item?.property_ref || "");
   const [jurisdiction, setJurisdiction] = useState("England");
@@ -703,61 +704,36 @@ export const ActionLauncher = ({
   const [evidence, setEvidence] = useState("");
   const [humanGates, setHumanGates] = useState([]);
   const [submitState, setSubmitState] = useState({ state: "idle", message: "", taskId: "" });
-  const [draftLoaded, setDraftLoaded] = useState(false);
 
   useEffect(() => {
     const nextTemplate = taskTemplates.find((template) => template.id === item?.template_id) || taskTemplates[0];
-    const draft = readAssignmentDraft(draftKey);
-    setDraftLoaded(false);
-    setTemplateId(draft?.templateId || nextTemplate?.id || "");
-    setClientRef(
-      draft?.clientRef || `local-dashboard:${Date.now()}:${crypto.randomUUID?.() || Math.random().toString(16).slice(2)}`
-    );
-    setTitle(draft?.title || item?.title || item?.name || "");
-    setPropertyRef(draft?.propertyRef || item?.property_ref || "");
-    setJurisdiction(draft?.jurisdiction || "England");
-    setPriority(draft?.priority || item?.priority || "normal");
-    setDeadline(draft?.deadline || item?.due || "");
-    setDesiredOutcome(draft?.desiredOutcome || item?.description || item?.explain || getStarterPrompt?.(item) || "");
-    setEvidence(draft?.evidence || "");
-    setHumanGates(Array.isArray(draft?.humanGates) ? draft.humanGates : []);
+    setTemplateId(nextTemplate?.id || "");
+    setClientRef(makeClientRef(dispatcherIdentity));
+    setTitle(item?.title || item?.name || "");
+    setPropertyRef(item?.property_ref || "");
+    setJurisdiction("England");
+    setPriority(item?.priority || "normal");
+    setDeadline(item?.due || "");
+    setDesiredOutcome(item?.description || item?.explain || getStarterPrompt?.(item) || "");
+    setEvidence("");
+    setHumanGates([]);
     setSubmitState({ state: "idle", message: "", taskId: "" });
-    setDraftLoaded(true);
-  }, [item, getStarterPrompt, taskTemplates, draftKey]);
-
-  useEffect(() => {
-    if (!dispatcher || !draftKey || !draftLoaded || submitState.state === "submitted") return;
-    writeAssignmentDraft(draftKey, {
-      templateId,
-      clientRef,
-      title,
-      propertyRef,
-      jurisdiction,
-      priority,
-      deadline,
-      desiredOutcome,
-      evidence,
-      humanGates,
-    });
-  }, [
-    dispatcher,
-    draftKey,
-    draftLoaded,
-    templateId,
-    clientRef,
-    title,
-    propertyRef,
-    jurisdiction,
-    priority,
-    deadline,
-    desiredOutcome,
-    evidence,
-    humanGates,
-    submitState.state,
-  ]);
+  }, [item, getStarterPrompt, taskTemplates, dispatcherIdentity]);
 
   const skillName = item?.skill || (item?.code ? "ships-computer" : "cowork");
   const template = taskTemplates.find((candidate) => candidate.id === templateId) || initialTemplate;
+  const requesterLabel =
+    dispatcherIdentity?.requester?.name ||
+    dispatcherIdentity?.requester?.email ||
+    dispatcherIdentity?.requester?.id ||
+    "";
+  const branchLabel =
+    dispatcherIdentity?.branch?.name ||
+    dispatcherIdentity?.branch?.id ||
+    dispatcherIdentity?.tenant?.name ||
+    dispatcherIdentity?.tenant?.id ||
+    "";
+  const identityReady = !dispatcher || Boolean(requesterLabel);
   const preview = buildAssignmentBody({
     template,
     title,
@@ -914,6 +890,14 @@ export const ActionLauncher = ({
 
   const submit = async () => {
     if (!onSubmit || !dispatcher) return;
+    if (!identityReady) {
+      setSubmitState({
+        state: "error",
+        message: "Dispatcher identity has not loaded from /bridge-api/me",
+        taskId: "",
+      });
+      return;
+    }
     setSubmitState({ state: "submitting", message: "Submitting assignment", taskId: "" });
     try {
       const result = await onSubmit({
@@ -921,7 +905,6 @@ export const ActionLauncher = ({
         topic: template?.topic || title,
         body: preview,
         priority,
-        requester: "bryan",
         client_ref: clientRef,
         template_id: template?.id,
         property_ref: propertyRef.trim(),
@@ -936,7 +919,6 @@ export const ActionLauncher = ({
         message: result?.deduped ? "Existing assignment loaded" : "Assignment submitted",
         taskId: result?.task?.id || "",
       });
-      clearAssignmentDraft(draftKey);
     } catch (error) {
       setSubmitState({
         state: "error",
@@ -991,6 +973,15 @@ export const ActionLauncher = ({
             }}
           >
             /{skillName}
+          </div>
+          <div
+            style={{
+              fontSize: 9,
+              color: identityReady ? T?.textTert || "#666" : T?.tier?.T0 || "#e94560",
+              marginTop: 3,
+            }}
+          >
+            {requesterLabel ? `Requester: ${requesterLabel}` : dispatcherStatus?.message || "Loading requester"}
           </div>
         </div>
         <button
@@ -1062,6 +1053,26 @@ export const ActionLauncher = ({
             }}
           >
             {item.desc || item.description}
+          </div>
+        )}
+        {(branchLabel || dispatcherIdentity?.scope?.teamId || dispatcherIdentity?.scope?.useCaseId) && (
+          <div
+            style={{
+              display: "flex",
+              gap: 4,
+              flexWrap: "wrap",
+              marginTop: 8,
+            }}
+          >
+            {branchLabel && (
+              <Pill label={branchLabel} color={(T?.tier?.T2 || "#4fc3f7") + "33"} fg={T?.tier?.T2 || "#4fc3f7"} small theme={T} />
+            )}
+            {dispatcherIdentity?.scope?.teamId && (
+              <Pill label={dispatcherIdentity.scope.teamId} color={(T?.tier?.T3 || "#66bb6a") + "33"} fg={T?.tier?.T3 || "#66bb6a"} small theme={T} />
+            )}
+            {dispatcherIdentity?.scope?.useCaseId && (
+              <Pill label={dispatcherIdentity.scope.useCaseId} color={(T?.tier?.T1 || "#f5a623") + "33"} fg={T?.tier?.T1 || "#f5a623"} small theme={T} />
+            )}
           </div>
         )}
       </div>
@@ -1199,7 +1210,7 @@ export const ActionLauncher = ({
         ) : (
           <button
             onClick={submit}
-            disabled={submitState.state === "submitting" || !title.trim() || !desiredOutcome.trim()}
+            disabled={submitState.state === "submitting" || !title.trim() || !desiredOutcome.trim() || !identityReady}
             style={{
               width: "100%",
               background: `linear-gradient(135deg, ${T?.tier?.T2 || "#4fc3f7"}, ${T?.tier?.T3 || "#66bb6a"})`,
@@ -1210,7 +1221,7 @@ export const ActionLauncher = ({
               fontWeight: 800,
               fontSize: 13,
               cursor: submitState.state === "submitting" ? "wait" : "pointer",
-              opacity: submitState.state === "submitting" || !title.trim() || !desiredOutcome.trim() ? 0.55 : 1,
+              opacity: submitState.state === "submitting" || !title.trim() || !desiredOutcome.trim() || !identityReady ? 0.55 : 1,
               fontFamily: T?.font || "sans-serif",
               display: "flex",
               alignItems: "center",
@@ -1218,7 +1229,7 @@ export const ActionLauncher = ({
               gap: 8,
             }}
           >
-            {submitState.state === "submitting" ? "Submitting..." : actionLabel}
+            {submitState.state === "submitting" ? "Submitting..." : identityReady ? actionLabel : "Waiting for /me"}
           </button>
         )}
         {submitState.state === "error" && (
@@ -1254,43 +1265,8 @@ function buildAssignmentBody({ template, title, propertyRef, jurisdiction, prior
   ].join("\n");
 }
 
-function assignmentDraftKey(dispatcher, item) {
-  if (!dispatcher) return "";
-  const scope = [
-    dispatcher.teamId || "estate-agent-uk",
-    dispatcher.useCaseId || "branch-operations",
-    dispatcher.coordinatorBusAddress || "estate-agent.uk.case",
-    item?.id || item?.busAddress || item?.name || "new-assignment",
-  ]
-    .map((part) => encodeURIComponent(part))
-    .join(":");
-  return `bridge:assignment-draft:v1:${scope}`;
-}
-
-function readAssignmentDraft(key) {
-  if (!key || typeof window === "undefined") return null;
-  try {
-    const raw = window.localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : null;
-  } catch {
-    return null;
-  }
-}
-
-function writeAssignmentDraft(key, draft) {
-  if (!key || typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(key, JSON.stringify({ ...draft, updatedAt: new Date().toISOString() }));
-  } catch {
-    // Draft preservation is best-effort only.
-  }
-}
-
-function clearAssignmentDraft(key) {
-  if (!key || typeof window === "undefined") return;
-  try {
-    window.localStorage.removeItem(key);
-  } catch {
-    // Draft preservation is best-effort only.
-  }
+function makeClientRef(identity) {
+  void identity;
+  const random = globalThis.crypto?.randomUUID?.() || Math.random().toString(16).slice(2);
+  return ["dashboard", Date.now(), random].map((part) => encodeURIComponent(part)).join(":");
 }

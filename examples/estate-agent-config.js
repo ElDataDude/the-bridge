@@ -7,6 +7,198 @@
  */
 
 const data = {
+  tenant: {
+    id: "otera-estates",
+    name: "Otera Estates",
+  },
+
+  branch: {
+    id: "bath-central",
+    name: "Bath Central",
+  },
+
+  importReviews: [
+    {
+      id: "import-crm-2026-05-09",
+      name: "Morning CRM delta",
+      source: "Branch CRM",
+      branch: "Bath Central",
+      status: "review",
+      records: 38,
+      exceptions: 3,
+      summary: "New valuation leads, viewing updates, and two progression milestones are staged for coordinator review.",
+      nextAction: "Confirm duplicate seller records before dispatch.",
+      skill: "crm-import-review",
+    },
+    {
+      id: "import-portal-2026-05-09",
+      name: "Portal listing readiness",
+      source: "Property Portals",
+      branch: "Bath Central",
+      status: "pending",
+      records: 11,
+      exceptions: 2,
+      summary: "Listing media and EPC status need reconciliation before publication work is assigned.",
+      nextAction: "Route missing EPC and media checks to listing launch.",
+      skill: "listing-launch-readiness",
+    },
+  ],
+
+  cases: [
+    {
+      id: "case-ashfield-road",
+      ref: "VAL-ASH-014",
+      title: "14 Ashfield Road valuation",
+      client: "Harper vendor file",
+      property: "14 Ashfield Road",
+      stage: "intake",
+      priority: "high",
+      owner: "valuation-intake",
+      due: "2026-05-11",
+      nextMilestone: "Market appraisal pack ready",
+      summary: "Seller needs price-positioning evidence and launch timing before confirming instruction.",
+      risks: ["Comparable evidence is incomplete", "Seller expects weekend follow-up"],
+      skill: "valuation-intake",
+    },
+    {
+      id: "case-priory-lane",
+      ref: "LST-PRI-008",
+      title: "8 Priory Lane launch readiness",
+      client: "Priory Lane vendor file",
+      property: "8 Priory Lane",
+      stage: "blocked",
+      priority: "critical",
+      owner: "listing-launch",
+      due: "2026-05-10",
+      nextMilestone: "Material information and EPC approval",
+      summary: "Photography is ready, but the launch remains gated by EPC confirmation and material-information review.",
+      risks: ["Portal publication cannot proceed without approval", "Supplier appointment may miss launch SLA"],
+      skill: "listing-launch-readiness",
+    },
+    {
+      id: "case-station-mews",
+      ref: "OFR-STA-022",
+      title: "22 Station Mews offer pack",
+      client: "Station Mews vendor file",
+      property: "22 Station Mews",
+      stage: "live",
+      priority: "high",
+      owner: "offer-manager",
+      due: "2026-05-10",
+      nextMilestone: "Vendor offer decision",
+      summary: "Buyer position, proof-of-funds status, and comparable sales are ready for vendor review.",
+      risks: ["Vendor wants a same-day recommendation", "Buyer chain detail still needs confirmation"],
+      skill: "offer-decision-pack",
+    },
+  ],
+
+  approvals: [
+    {
+      id: "approval-priory-launch",
+      caseRef: "LST-PRI-008",
+      title: "Approve Priory Lane portal publication",
+      gate: "Publication approval",
+      approver: "Branch Manager",
+      status: "queued",
+      due: "2026-05-10",
+      reason: "Portal publication must wait for human confirmation that EPC and material-information fields are complete.",
+      skill: "listing-launch-readiness",
+    },
+    {
+      id: "approval-station-offer",
+      caseRef: "OFR-STA-022",
+      title: "Confirm vendor offer response",
+      gate: "Final terms / contract",
+      approver: "Senior Negotiator",
+      status: "pending",
+      due: "2026-05-09",
+      reason: "Vendor decision and negotiation ceiling must be approved before buyer comms are sent.",
+      skill: "offer-decision-pack",
+    },
+    {
+      id: "approval-client-money",
+      caseRef: "LET-HIG-004",
+      title: "Release holding deposit next step",
+      gate: "Client money / deposit",
+      approver: "Lettings Manager",
+      status: "blocked",
+      due: "2026-05-12",
+      reason: "Applicant evidence is incomplete and client money movement requires manager approval.",
+      skill: "accounts-client-money",
+    },
+  ],
+
+  auditEvents: [
+    {
+      id: "audit-001",
+      at: "2026-05-09 09:12",
+      actor: "dispatcher",
+      action: "Loaded tenant scope",
+      target: "Otera Estates / Bath Central",
+      status: "loaded",
+      summary: "Tenant, branch, requester, and dispatcher scope were resolved before task polling.",
+    },
+    {
+      id: "audit-002",
+      at: "2026-05-09 09:18",
+      actor: "crm-import-review",
+      action: "Flagged duplicate seller records",
+      target: "Morning CRM delta",
+      status: "review",
+      summary: "Three records need review before coordinator dispatch to prevent cross-case leakage.",
+    },
+    {
+      id: "audit-003",
+      at: "2026-05-09 09:31",
+      actor: "listing-launch",
+      action: "Blocked publication handoff",
+      target: "LST-PRI-008",
+      status: "blocked",
+      summary: "Publication remains gated by missing EPC confirmation and material-information approval.",
+    },
+  ],
+
+  adminIntegrations: [
+    {
+      id: "admin-crm",
+      name: "Branch CRM",
+      type: "database",
+      status: "active",
+      description: "Tenant-scoped import feed for sellers, buyers, properties, viewings, and offers.",
+      settings: {
+        mode: "read-only",
+        branchScope: "Bath Central",
+        importCadence: "daily",
+        apiToken: true,
+      },
+    },
+    {
+      id: "admin-dispatcher",
+      name: "Bridge Dispatcher",
+      type: "api",
+      status: "active",
+      description: "Tenant-safe dispatcher proxy used by the cockpit for identity, task reads, and task submission.",
+      settings: {
+        identityEndpoint: "/bridge-api/me",
+        taskEndpoint: "/bridge-api/tasks",
+        credentialMode: "same-origin",
+        bearerToken: true,
+      },
+    },
+    {
+      id: "admin-portals",
+      name: "Property Portals",
+      type: "portal",
+      status: "staged",
+      description: "Launch-readiness destination for portal publication checks; publication remains approval-gated.",
+      settings: {
+        rightmove: "planned",
+        zoopla: "planned",
+        onTheMarket: "planned",
+      },
+    },
+  ],
+
   entities: [
     {
       id: "principal-agent",
@@ -589,9 +781,6 @@ export default {
 
   dispatcher: {
     proxyBase: "/bridge-api",
-    teamId: "estate-agent-uk",
-    useCaseId: "branch-operations",
-    coordinatorBusAddress: "estate-agent.uk.case",
     pollIntervalMs: 15000,
   },
 
@@ -659,6 +848,32 @@ export default {
   ],
 
   modes: [
+    {
+      id: "cockpit",
+      label: "COCKPIT",
+      subtitle: "Tenant-safe branch cockpit for dispatcher identity, approvals, imports, cases, and audit",
+      color: "#50E3C2",
+      tagline: "Branch Cockpit",
+      crew: [
+        { letter: "BM", name: "Branch Manager", role: "Approval owner", colors: ["#50E3C2", "#111"] },
+        { letter: "CC", name: "Case Coordinator", role: "Dispatcher owner", colors: ["#4A90E2", "#fff"] },
+        { letter: "AD", name: "Admin", role: "Integration settings", colors: ["#F5A623", "#111"] },
+      ],
+      tabs: [
+        { id: "identity", label: "Tenant", panel: "TenantIdentityPanel" },
+        { id: "imports", label: "Imports", panel: "ImportReviewPanel" },
+        { id: "cases", label: "Cases", panel: "CaseDetailPanel" },
+        { id: "approvals", label: "Approvals", panel: "ApprovalQueuePanel" },
+        { id: "audit", label: "Audit", panel: "AuditTrailPanel" },
+        { id: "admin", label: "Admin", panel: "AdminIntegrationSettingsPanel" },
+      ],
+      stats: [
+        { label: "BRANCH", value: "Bath", color: "#50E3C2" },
+        { label: "IMPORTS", value: "2", color: "#4A90E2" },
+        { label: "APPROVALS", value: "3", color: "#F5A623" },
+        { label: "CASES", value: "3", color: "#CE93D8" },
+      ],
+    },
     {
       id: "build",
       label: "BUILD",
