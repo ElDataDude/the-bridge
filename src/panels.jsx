@@ -15,6 +15,7 @@ import {
   ProgressBar,
   ActionIcon,
 } from "./components";
+import { ageLabel, stageForTask } from "./dispatcherClient";
 
 /**
  * EntityGrid — Generalised agent/entity grid with tier filtering and ring visualisation
@@ -100,7 +101,7 @@ export const EntityGrid = ({ data, theme: T, onSelect, selectedItem, onAction })
                     <div style={{ fontWeight: 700, fontSize: 12, color: T?.text }}>{entity.name}</div>
                     <div style={{ fontSize: 9, color: T?.textSec }}>{entity.role}</div>
                   </div>
-                  <ActionIcon onClick={() => { event.stopPropagation(); onAction?.(entity); }} theme={T} />
+                  <ActionIcon onClick={(event) => { event.stopPropagation(); onAction?.(entity); }} theme={T} />
                 </div>
                 <div style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 8 }}>
                   <HealthDot state={entity.health || "G"} size={8} label={false} theme={T} />
@@ -195,7 +196,7 @@ export const KanbanBoard = ({ data, theme: T, onSelect, selectedItem, onAction }
                     <div style={{ fontWeight: 700, fontSize: 11, color: T?.text }}>
                       {item.title || item.name}
                     </div>
-                    <ActionIcon onClick={() => { event.stopPropagation(); onAction?.(item); }} theme={T} />
+                    <ActionIcon onClick={(event) => { event.stopPropagation(); onAction?.(item); }} theme={T} />
                   </div>
                   <div style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 4 }}>
                     {item.health && <HealthDot state={item.health} size={8} label={false} theme={T} />}
@@ -451,10 +452,140 @@ export const ObjectiveStack = ({ data, theme: T, onSelect, selectedItem, onActio
                 <ProgressBar pct={obj.progress} color={T?.tier?.T3} width={120} theme={T} />
               )}
             </div>
-            <ActionIcon onClick={() => { event.stopPropagation(); onAction?.(obj); }} theme={T} />
+            <ActionIcon onClick={() => onAction?.(obj)} theme={T} />
           </div>
         </div>
       ))}
+    </div>
+  );
+};
+
+/**
+ * LiveTaskBoard — Dispatcher-backed estate-agent assignments
+ */
+export const LiveTaskBoard = ({ theme: T, onSelect, selectedItem, onAction, liveTasks = [], liveTaskStatus, onRefreshTasks }) => {
+  const columns = [
+    { id: "intake", name: "Intake", hint: "Pending coordinator tasks" },
+    { id: "prep", name: "Preparation", hint: "Pending child handoffs" },
+    { id: "live", name: "Live Work", hint: "Claimed or in progress" },
+    { id: "blocked", name: "Blocked", hint: "Needs input or approval" },
+    { id: "done", name: "Done", hint: "Resolved or superseded" },
+  ];
+  const byColumn = Object.fromEntries(columns.map((column) => [column.id, []]));
+  liveTasks.forEach((task) => {
+    const stage = stageForTask(task);
+    byColumn[stage]?.push(task);
+  });
+  const statusColor =
+    liveTaskStatus?.state === "ok"
+      ? T?.tier?.T3
+      : liveTaskStatus?.state === "error"
+        ? T?.tier?.T0
+        : T?.tier?.T2;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+        <button
+          onClick={() => onAction?.({ id: "new-assignment", name: "New assignment", title: "New assignment", skill: "case" })}
+          style={{
+            background: T?.tier?.T2,
+            border: "none",
+            borderRadius: 6,
+            color: "#111",
+            cursor: "pointer",
+            fontFamily: T?.font,
+            fontSize: 12,
+            fontWeight: 800,
+            padding: "9px 12px",
+          }}
+        >
+          + Assign Work
+        </button>
+        <button
+          onClick={onRefreshTasks}
+          style={{
+            background: T?.card,
+            border: `1px solid ${T?.border}`,
+            borderRadius: 6,
+            color: T?.text,
+            cursor: "pointer",
+            fontFamily: T?.font,
+            fontSize: 11,
+            fontWeight: 700,
+            padding: "8px 10px",
+          }}
+        >
+          Refresh
+        </button>
+        <div style={{ color: statusColor, fontSize: 11, fontWeight: 700 }}>
+          {liveTaskStatus?.message || "Assignments"}
+        </div>
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(190px, 1fr))", gap: 12, flex: 1, minHeight: 0 }}>
+        {columns.map((column) => (
+          <div
+            key={column.id}
+            style={{
+              background: T?.panel,
+              border: `1px solid ${T?.border}`,
+              borderRadius: 8,
+              display: "flex",
+              flexDirection: "column",
+              minHeight: 0,
+            }}
+          >
+            <div style={{ padding: 10, borderBottom: `1px solid ${T?.border}` }}>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}>
+                <div style={{ color: T?.text, fontSize: 12, fontWeight: 800 }}>{column.name}</div>
+                <Pill label={String(byColumn[column.id].length)} color={T?.tier?.T2} fg="#111" small theme={T} />
+              </div>
+              <div style={{ color: T?.textTert, fontSize: 9, marginTop: 4 }}>{column.hint}</div>
+            </div>
+            <div style={{ flex: 1, overflowY: "auto", padding: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+              {byColumn[column.id].map((task) => (
+                <div
+                  key={task.id}
+                  onClick={() => onSelect(task)}
+                  style={{
+                    background: T?.card,
+                    border: `1px solid ${selectedItem?.id === task.id ? T?.tier?.T2 : T?.border}`,
+                    borderRadius: 7,
+                    cursor: "pointer",
+                    padding: 10,
+                  }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
+                    <div style={{ color: T?.text, fontSize: 11, fontWeight: 800, lineHeight: 1.35 }}>
+                      {task.title || task.topic}
+                    </div>
+                    <ActionIcon onClick={() => onAction?.(task)} theme={T} />
+                  </div>
+                  <div style={{ color: T?.textTert, fontSize: 9, marginTop: 6, lineHeight: 1.35 }}>
+                    {task.to_agent}
+                  </div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginTop: 8 }}>
+                    <Pill label={task.status} color={statusColorFor(task.status, T)} small theme={T} />
+                    <Pill label={task.priority || "normal"} color={priorityColorFor(task.priority, T)} fg="#111" small theme={T} />
+                    {task.created_at && <Pill label={ageLabel(task.created_at)} color={T?.border} small theme={T} />}
+                  </div>
+                  {task.response && (
+                    <div style={{ color: T?.textSec, fontSize: 9, lineHeight: 1.45, marginTop: 8 }}>
+                      {task.response.replace(/\s+/g, " ").slice(0, 180)}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {byColumn[column.id].length === 0 && (
+                <div style={{ color: T?.textTert, fontSize: 10, padding: 8, lineHeight: 1.4 }}>
+                  No assignments
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
@@ -533,7 +664,7 @@ export const TaskBoard = ({ data, theme: T, onSelect, selectedItem, onAction }) 
               <div style={{ fontWeight: 700, fontSize: 11, color: T?.text }}>
                 {task.title}
               </div>
-              <ActionIcon onClick={() => { event.stopPropagation(); onAction?.(task); }} theme={T} />
+              <ActionIcon onClick={(event) => { event.stopPropagation(); onAction?.(task); }} theme={T} />
             </div>
             <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
               {task.gragbb && <HealthDot state={task.gragbb} size={8} label={false} theme={T} />}
@@ -699,7 +830,7 @@ export const DriftDetection = ({ data, theme: T, onSelect, selectedItem, onActio
                       {item.type} {item.kso && `| ${item.kso}`}
                     </div>
                   </div>
-                  <ActionIcon onClick={() => { event.stopPropagation(); onAction?.(item); }} theme={T} />
+                  <ActionIcon onClick={(event) => { event.stopPropagation(); onAction?.(item); }} theme={T} />
                 </div>
               </div>
             ))}
@@ -743,7 +874,7 @@ export const DriftDetection = ({ data, theme: T, onSelect, selectedItem, onActio
                       {item.type} {item.kso && `| ${item.kso}`}
                     </div>
                   </div>
-                  <ActionIcon onClick={() => { event.stopPropagation(); onAction?.(item); }} theme={T} />
+                  <ActionIcon onClick={(event) => { event.stopPropagation(); onAction?.(item); }} theme={T} />
                 </div>
               </div>
             ))}
@@ -759,3 +890,17 @@ export const DriftDetection = ({ data, theme: T, onSelect, selectedItem, onActio
     </div>
   );
 };
+
+function statusColorFor(status, T) {
+  if (status === "resolved" || status === "superseded") return T?.tier?.T3 || "#66bb6a";
+  if (status === "blocked") return T?.tier?.T0 || "#e94560";
+  if (status === "in_progress" || status === "acknowledged") return T?.tier?.T2 || "#4fc3f7";
+  return T?.tier?.T1 || "#f5a623";
+}
+
+function priorityColorFor(priority, T) {
+  if (priority === "critical") return T?.tier?.T0 || "#e94560";
+  if (priority === "high") return T?.tier?.T1 || "#f5a623";
+  if (priority === "low") return T?.textTert || "#666";
+  return T?.tier?.T2 || "#4fc3f7";
+}

@@ -13,13 +13,14 @@
  * <Bridge config={config} />
  */
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { defaultTheme, createTheme } from "./theme";
 import { DetailDrawer, ActionLauncher } from "./components";
+import { fetchBridgeTasks, readCachedTasks, submitBridgeTask } from "./dispatcherClient";
 import {
   EntityGrid, KanbanBoard, CapabilitiesGrid, PatternsGrid,
   IntegrationsGrid, MetricsPanel, ObjectiveStack, TaskBoard,
-  OutcomeGrid, QuadrantBalance, DriftDetection
+  OutcomeGrid, QuadrantBalance, DriftDetection, LiveTaskBoard
 } from "./panels";
 
 /**
@@ -29,7 +30,7 @@ import {
 const panelMap = {
   EntityGrid, KanbanBoard, CapabilitiesGrid, PatternsGrid,
   IntegrationsGrid, MetricsPanel, ObjectiveStack, TaskBoard,
-  OutcomeGrid, QuadrantBalance, DriftDetection,
+  OutcomeGrid, QuadrantBalance, DriftDetection, LiveTaskBoard,
 };
 
 /**
@@ -55,12 +56,56 @@ export function Bridge({ config = {} }) {
   const [time, setTime] = useState(new Date());
   const [taskFilter, setTaskFilter] = useState("all");
   const [expandedTask, setExpandedTask] = useState(null);
+  const [liveTasks, setLiveTasks] = useState(() => readCachedTasks(config.dispatcher));
+  const [liveTaskStatus, setLiveTaskStatus] = useState({
+    state: "cached",
+    message: "Showing cached assignments",
+    checkedAt: null,
+  });
 
   // === Live Clock ===
   useEffect(() => {
     const interval = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
+
+  const refreshLiveTasks = useCallback(async () => {
+    if (!config.dispatcher) return [];
+    setLiveTaskStatus((current) => ({ ...current, state: "loading", message: "Refreshing assignments" }));
+    try {
+      const tasks = await fetchBridgeTasks(config.dispatcher);
+      setLiveTasks(tasks);
+      setLiveTaskStatus({
+        state: "ok",
+        message: `${tasks.length} assignment${tasks.length === 1 ? "" : "s"} loaded`,
+        checkedAt: new Date().toISOString(),
+      });
+      return tasks;
+    } catch (error) {
+      setLiveTaskStatus({
+        state: "error",
+        message: error instanceof Error ? error.message : String(error),
+        checkedAt: new Date().toISOString(),
+      });
+      return [];
+    }
+  }, [config.dispatcher]);
+
+  useEffect(() => {
+    setLiveTasks(readCachedTasks(config.dispatcher));
+    setLiveTaskStatus({
+      state: "cached",
+      message: "Showing cached assignments",
+      checkedAt: null,
+    });
+  }, [config.dispatcher]);
+
+  useEffect(() => {
+    if (!config.dispatcher) return undefined;
+    refreshLiveTasks();
+    const interval = setInterval(refreshLiveTasks, config.dispatcher.pollIntervalMs || 15000);
+    return () => clearInterval(interval);
+  }, [config.dispatcher, refreshLiveTasks]);
 
   // === Mode Management ===
   const currentModeObj = useMemo(
@@ -112,6 +157,12 @@ export function Bridge({ config = {} }) {
     if (config.onAction) {
       config.onAction(item);
     }
+  };
+
+  const handleAssignmentSubmit = async (payload) => {
+    const result = await submitBridgeTask(config.dispatcher, payload);
+    await refreshLiveTasks();
+    return result;
   };
 
   const handleActionClose = () => {
@@ -185,9 +236,21 @@ export function Bridge({ config = {} }) {
     headerRight: {
       display: "flex",
       alignItems: "center",
-      gap: "16px",
+      gap: "10px",
       fontSize: "12px",
       color: theme.textSec,
+    },
+    assignButton: {
+      border: `1px solid ${theme.tier.T2}`,
+      background: `${theme.tier.T2}22`,
+      color: theme.tier.T2,
+      borderRadius: 6,
+      padding: "7px 10px",
+      fontSize: 11,
+      fontWeight: 800,
+      cursor: "pointer",
+      fontFamily: theme.font,
+      whiteSpace: "nowrap",
     },
     clock: {
       fontFamily: "monospace",
@@ -381,6 +444,22 @@ export function Bridge({ config = {} }) {
           </div>
 
           <div style={styles.headerRight}>
+            {config.dispatcher && (
+              <button
+                style={styles.assignButton}
+                onClick={() =>
+                  handleAction({
+                    id: "new-assignment",
+                    name: "New assignment",
+                    title: "New assignment",
+                    skill: "case",
+                    description: "Create a new handoff for the estate-agent team coordinator.",
+                  })
+                }
+              >
+                + Assign Work
+              </button>
+            )}
             <div style={styles.clock}>
               {time.toLocaleTimeString("en-US", {
                 hour: "2-digit",
@@ -449,6 +528,9 @@ export function Bridge({ config = {} }) {
                 onSelect={handleItemSelect}
                 selectedItem={selectedItem}
                 onAction={handleAction}
+                liveTasks={liveTasks}
+                liveTaskStatus={liveTaskStatus}
+                onRefreshTasks={refreshLiveTasks}
               />
             ) : (
               <div style={{ color: theme.textTert, padding: "20px" }}>
@@ -497,6 +579,9 @@ export function Bridge({ config = {} }) {
           getStarterPrompt={config.getStarterPrompt}
           actionLabel={config.actionLabel || "Start Session"}
           theme={theme}
+          dispatcher={config.dispatcher}
+          taskTemplates={config.taskTemplates || []}
+          onSubmit={handleAssignmentSubmit}
         />
       )}
     </>
