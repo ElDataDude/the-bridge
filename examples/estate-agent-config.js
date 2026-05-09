@@ -21,6 +21,7 @@ const data = {
       wins: ["First managed team operating model defined", "Branch-level dashboard connected to workstreams"],
       connections: ["valuation-intake", "sales-progressor", "compliance-guardian"],
       skill: "case",
+      busAddress: "estate-agent.uk.case",
     },
     {
       id: "valuation-intake",
@@ -34,6 +35,7 @@ const data = {
       explain: "New seller leads are being triaged inside SLA.",
       connections: ["listing-launch", "crm-sync"],
       skill: "instruction",
+      busAddress: "estate-agent.uk.instruction",
     },
     {
       id: "listing-launch",
@@ -48,6 +50,7 @@ const data = {
       risks: ["Current material-information guidance requires human compliance review before publication"],
       connections: ["portal-publisher", "compliance-guardian"],
       skill: "listing-material-info",
+      busAddress: "estate-agent.uk.listing.material-info",
     },
     {
       id: "buyer-match",
@@ -61,6 +64,7 @@ const data = {
       explain: "Hot-buyer shortlist is refreshed each morning.",
       connections: ["viewing-desk", "crm-sync"],
       skill: "marketing-crm",
+      busAddress: "estate-agent.uk.marketing.crm",
     },
     {
       id: "viewing-desk",
@@ -75,6 +79,7 @@ const data = {
       risks: ["Manual key checks still create avoidable confirmation work"],
       connections: ["offer-manager", "calendar-sync"],
       skill: "viewings",
+      busAddress: "estate-agent.uk.viewings",
     },
     {
       id: "offer-manager",
@@ -88,6 +93,7 @@ const data = {
       explain: "Offer pack template is live and reducing back-and-forth.",
       connections: ["sales-progressor", "compliance-guardian"],
       skill: "sales-offers",
+      busAddress: "estate-agent.uk.sales.offers",
     },
     {
       id: "sales-progressor",
@@ -102,6 +108,7 @@ const data = {
       risks: ["Slow solicitor response on two agreed sales", "Mortgage valuation date not confirmed for one buyer"],
       connections: ["offer-manager", "vendor-comms", "compliance-guardian"],
       skill: "sales-progression",
+      busAddress: "estate-agent.uk.sales.progression",
     },
     {
       id: "vendor-comms",
@@ -115,6 +122,7 @@ const data = {
       explain: "Weekly comms rhythm is active across managed instructions.",
       connections: ["principal-agent", "sales-progressor"],
       skill: "sales-liaison",
+      busAddress: "estate-agent.uk.sales.liaison",
     },
     {
       id: "compliance-guardian",
@@ -129,6 +137,7 @@ const data = {
       risks: ["Compliance evidence must be complete before memorandum issue"],
       connections: ["listing-launch", "offer-manager", "sales-progressor"],
       skill: "compliance-aml",
+      busAddress: "estate-agent.uk.compliance.aml",
     },
     {
       id: "crm-sync",
@@ -142,6 +151,7 @@ const data = {
       explain: "Human settlement approval is required before any final complaint response.",
       connections: ["principal-agent", "sales-progressor", "calendar-sync"],
       skill: "complaints",
+      busAddress: "estate-agent.uk.complaints",
     },
     {
       id: "portal-publisher",
@@ -155,6 +165,7 @@ const data = {
       explain: "Safety evidence is a hard gate before relevant sales or lettings milestones.",
       connections: ["listing-launch", "calendar-sync"],
       skill: "property-compliance",
+      busAddress: "estate-agent.uk.property.compliance",
     },
     {
       id: "calendar-sync",
@@ -168,6 +179,7 @@ const data = {
       explain: "Emergency and access decisions remain human-approved.",
       connections: ["viewing-desk", "portal-publisher"],
       skill: "management-maintenance",
+      busAddress: "estate-agent.uk.management.maintenance",
     },
     {
       id: "lettings-application",
@@ -181,6 +193,7 @@ const data = {
       explain: "Right-to-rent and fee-rule checks block tenancy setup when incomplete.",
       connections: ["lettings-tenancy", "compliance-guardian", "client-money"],
       skill: "lettings-application",
+      busAddress: "estate-agent.uk.lettings.application",
     },
     {
       id: "lettings-tenancy",
@@ -194,6 +207,7 @@ const data = {
       explain: "Final tenancy documents require human approval.",
       connections: ["client-money", "portal-publisher", "calendar-sync"],
       skill: "lettings-tenancy",
+      busAddress: "estate-agent.uk.lettings.tenancy",
     },
     {
       id: "client-money",
@@ -207,6 +221,7 @@ const data = {
       explain: "Money release and reconciliation decisions are approval-gated.",
       connections: ["lettings-tenancy", "compliance-guardian", "principal-agent"],
       skill: "accounts-client-money",
+      busAddress: "estate-agent.uk.accounts.client-money",
     },
   ],
 
@@ -572,6 +587,77 @@ export default {
   subtitle: "Managed Agent Team - Branch Operations",
   data,
 
+  dispatcher: {
+    proxyBase: "/bridge-api",
+    teamId: "estate-agent-uk",
+    useCaseId: "branch-operations",
+    coordinatorBusAddress: "estate-agent.uk.case",
+    pollIntervalMs: 15000,
+  },
+
+  taskTemplates: [
+    {
+      id: "new-valuation-instruction",
+      name: "New valuation / instruction pack",
+      topic: "new-valuation-instruction",
+      instructions: "Prepare the valuation or instruction pack, identify missing seller/landlord facts, route AML and listing-readiness work, and block if mandatory evidence is missing.",
+    },
+    {
+      id: "listing-launch-readiness",
+      name: "Listing launch readiness",
+      topic: "listing-launch-readiness",
+      instructions: "Check EPC, media, listing copy, material-information gaps, portal readiness, and publication approval gates.",
+    },
+    {
+      id: "buyer-tenant-match",
+      name: "Buyer or tenant match",
+      topic: "buyer-tenant-match",
+      instructions: "Prepare a matched shortlist and consent-aware follow-up plan, then route viewing or CRM work where needed.",
+    },
+    {
+      id: "viewing-plan",
+      name: "Viewing plan",
+      topic: "viewing-plan",
+      instructions: "Prepare viewing slots, access constraints, key status, reminders, feedback capture, and follow-up ownership.",
+    },
+    {
+      id: "offer-decision-pack",
+      name: "Offer decision pack",
+      topic: "offer-decision-pack",
+      instructions: "Prepare buyer position, chain, mortgage/cash status, proof-of-funds prompts, comparables, and vendor decision options.",
+    },
+    {
+      id: "sales-progression-unblock",
+      name: "Sales progression unblock",
+      topic: "sales-progression-unblock",
+      instructions: "Identify the current milestone, blocker, stakeholder owner, next escalation, and factual update draft.",
+    },
+    {
+      id: "aml-file-compliance-check",
+      name: "AML / file compliance check",
+      topic: "aml-file-compliance-check",
+      instructions: "Check the file evidence list, identify missing CDD/source-of-funds items, and escalate any high-risk findings without making clearance decisions.",
+    },
+    {
+      id: "lettings-tenancy-setup",
+      name: "Lettings application / tenancy setup",
+      topic: "lettings-tenancy-setup",
+      instructions: "Check applicant, right-to-rent, holding-deposit, guarantor, tenancy setup, prescribed document, and move-in readiness tasks.",
+    },
+    {
+      id: "maintenance-property-management",
+      name: "Maintenance / property management",
+      topic: "maintenance-property-management",
+      instructions: "Triage severity, access, landlord approval, contractor coordination, tenant communications, and evidence requirements.",
+    },
+    {
+      id: "complaint-evidence-pack",
+      name: "Complaint evidence pack",
+      topic: "complaint-evidence-pack",
+      instructions: "Prepare facts, key dates, evidence gaps, response deadline, draft response points, and human approval requirements.",
+    },
+  ],
+
   modes: [
     {
       id: "build",
@@ -610,6 +696,7 @@ export default {
         { letter: "AC", name: "AML Compliance", role: "AML and file completeness", colors: ["#E94560", "#fff"] },
       ],
       tabs: [
+        { id: "assignments", label: "Live Board", panel: "LiveTaskBoard" },
         { id: "objectives", label: "Objectives", panel: "ObjectiveStack" },
         { id: "tasks", label: "Task Board", panel: "TaskBoard" },
         { id: "integrations", label: "Integrations", panel: "IntegrationsGrid" },
@@ -638,7 +725,7 @@ export default {
     right: "example/estate-agent-config",
   },
 
-  actionLabel: "Open Agent Brief",
+  actionLabel: "Assign Work",
 
   getStarterPrompt(item) {
     const label = item?.name || item?.title || item?.code || "this workstream";

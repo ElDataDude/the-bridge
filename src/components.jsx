@@ -271,7 +271,7 @@ export const DetailDrawer = ({ item, onClose, onAction, theme: T }) => {
       >
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 800, fontSize: 16, color: T?.text || "#fff" }}>
-            {item.name || item.topic || "Untitled"}
+            {item.name || item.title || item.topic || "Untitled"}
           </div>
           {item.role && (
             <div
@@ -351,6 +351,41 @@ export const DetailDrawer = ({ item, onClose, onAction, theme: T }) => {
           {item.explain || item.gragbbExplain || "No detail available."}
         </div>
       </div>
+
+      {/* Details */}
+      {item.description && (
+        <div
+          style={{
+            background: T?.card || "#16161e",
+            borderRadius: 8,
+            padding: 12,
+            marginBottom: 12,
+            fontSize: 11,
+            color: T?.textSec || "#999",
+            lineHeight: 1.55,
+          }}
+        >
+          {item.description}
+        </div>
+      )}
+
+      {item.response && (
+        <div
+          style={{
+            background: (T?.tier?.T3 || "#66bb6a") + "12",
+            border: `1px solid ${(T?.tier?.T3 || "#66bb6a") + "44"}`,
+            borderRadius: 8,
+            padding: 12,
+            marginBottom: 12,
+            fontSize: 11,
+            color: T?.textSec || "#999",
+            lineHeight: 1.55,
+            whiteSpace: "pre-wrap",
+          }}
+        >
+          {item.response}
+        </div>
+      )}
 
       {/* Risks */}
       {item.risks && item.risks.length > 0 && (
@@ -649,19 +684,267 @@ export const ActionLauncher = ({
   item,
   onClose,
   getStarterPrompt,
-  actionLabel = "Start Session",
+  actionLabel = "Assign Work",
   theme: T,
+  dispatcher,
+  taskTemplates = [],
+  onSubmit,
 }) => {
-  const [prompt, setPrompt] = useState("");
-  const [launched, setLaunched] = useState(false);
+  const initialTemplate = taskTemplates.find((template) => template.id === item?.template_id) || taskTemplates[0];
+  const draftKey = assignmentDraftKey(dispatcher, item);
+  const [templateId, setTemplateId] = useState(initialTemplate?.id || "");
+  const [clientRef, setClientRef] = useState(() => `local-dashboard:${Date.now()}:${crypto.randomUUID?.() || Math.random().toString(16).slice(2)}`);
+  const [title, setTitle] = useState(item?.title || item?.name || "");
+  const [propertyRef, setPropertyRef] = useState(item?.property_ref || "");
+  const [jurisdiction, setJurisdiction] = useState("England");
+  const [priority, setPriority] = useState(item?.priority || "normal");
+  const [deadline, setDeadline] = useState(item?.due || "");
+  const [desiredOutcome, setDesiredOutcome] = useState(item?.description || item?.explain || getStarterPrompt?.(item) || "");
+  const [evidence, setEvidence] = useState("");
+  const [humanGates, setHumanGates] = useState([]);
+  const [submitState, setSubmitState] = useState({ state: "idle", message: "", taskId: "" });
+  const [draftLoaded, setDraftLoaded] = useState(false);
 
   useEffect(() => {
-    const initialPrompt = getStarterPrompt?.(item) || "";
-    setPrompt(initialPrompt);
-    setLaunched(false);
-  }, [item, getStarterPrompt]);
+    const nextTemplate = taskTemplates.find((template) => template.id === item?.template_id) || taskTemplates[0];
+    const draft = readAssignmentDraft(draftKey);
+    setDraftLoaded(false);
+    setTemplateId(draft?.templateId || nextTemplate?.id || "");
+    setClientRef(
+      draft?.clientRef || `local-dashboard:${Date.now()}:${crypto.randomUUID?.() || Math.random().toString(16).slice(2)}`
+    );
+    setTitle(draft?.title || item?.title || item?.name || "");
+    setPropertyRef(draft?.propertyRef || item?.property_ref || "");
+    setJurisdiction(draft?.jurisdiction || "England");
+    setPriority(draft?.priority || item?.priority || "normal");
+    setDeadline(draft?.deadline || item?.due || "");
+    setDesiredOutcome(draft?.desiredOutcome || item?.description || item?.explain || getStarterPrompt?.(item) || "");
+    setEvidence(draft?.evidence || "");
+    setHumanGates(Array.isArray(draft?.humanGates) ? draft.humanGates : []);
+    setSubmitState({ state: "idle", message: "", taskId: "" });
+    setDraftLoaded(true);
+  }, [item, getStarterPrompt, taskTemplates, draftKey]);
+
+  useEffect(() => {
+    if (!dispatcher || !draftKey || !draftLoaded || submitState.state === "submitted") return;
+    writeAssignmentDraft(draftKey, {
+      templateId,
+      clientRef,
+      title,
+      propertyRef,
+      jurisdiction,
+      priority,
+      deadline,
+      desiredOutcome,
+      evidence,
+      humanGates,
+    });
+  }, [
+    dispatcher,
+    draftKey,
+    draftLoaded,
+    templateId,
+    clientRef,
+    title,
+    propertyRef,
+    jurisdiction,
+    priority,
+    deadline,
+    desiredOutcome,
+    evidence,
+    humanGates,
+    submitState.state,
+  ]);
 
   const skillName = item?.skill || (item?.code ? "ships-computer" : "cowork");
+  const template = taskTemplates.find((candidate) => candidate.id === templateId) || initialTemplate;
+  const preview = buildAssignmentBody({
+    template,
+    title,
+    propertyRef,
+    jurisdiction,
+    priority,
+    deadline,
+    desiredOutcome,
+    evidence,
+    humanGates,
+  });
+  const gateOptions = [
+    "AML / sanctions",
+    "Client money / deposit",
+    "Keys / access",
+    "Publication approval",
+    "Final terms / contract",
+    "Complaint settlement",
+  ];
+
+  const inputStyle = {
+    background: T?.card || "#16161e",
+    border: `1px solid ${T?.border || "#2a2a35"}`,
+    borderRadius: 6,
+    color: T?.text || "#fff",
+    fontFamily: T?.font || "sans-serif",
+    fontSize: 11,
+    padding: "8px 10px",
+    outline: "none",
+    width: "100%",
+    boxSizing: "border-box",
+  };
+
+  const labelStyle = {
+    display: "block",
+    fontSize: 9,
+    fontWeight: 800,
+    color: T?.textTert || "#666",
+    textTransform: "uppercase",
+    letterSpacing: 0.5,
+    marginBottom: 5,
+  };
+
+  const copyPrompt = async () => {
+    setSubmitState({ state: "submitting", message: "Copying prompt", taskId: "" });
+    try {
+      await navigator.clipboard.writeText(desiredOutcome);
+      setSubmitState({ state: "submitted", message: "Prompt copied", taskId: "" });
+    } catch (error) {
+      setSubmitState({
+        state: "error",
+        message: error instanceof Error ? error.message : String(error),
+        taskId: "",
+      });
+    }
+  };
+
+  if (!dispatcher) {
+    return (
+      <div
+        style={{
+          position: "fixed",
+          top: 0,
+          right: 0,
+          bottom: 0,
+          width: 460,
+          background: T?.panel || "#12121a",
+          borderLeft: `2px solid ${T?.tier?.T2 || "#4fc3f7"}`,
+          boxShadow: "-4px 0 30px rgba(0,0,0,0.5)",
+          zIndex: 100,
+          display: "flex",
+          flexDirection: "column",
+          fontFamily: T?.font || "sans-serif",
+        }}
+      >
+        <div
+          style={{
+            padding: "14px 16px",
+            borderBottom: `1px solid ${T?.border || "#2a2a35"}`,
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+          }}
+        >
+          <div>
+            <div style={{ fontWeight: 800, fontSize: 14, color: T?.text || "#fff" }}>{actionLabel}</div>
+            <div style={{ fontSize: 10, color: T?.tier?.T2 || "#4fc3f7", fontWeight: 600 }}>/{skillName}</div>
+          </div>
+          <button
+            onClick={onClose}
+            style={{
+              background: "none",
+              border: "none",
+              color: T?.textTert || "#666",
+              fontSize: 18,
+              cursor: "pointer",
+            }}
+          >
+            x
+          </button>
+        </div>
+        <div style={{ padding: "12px 16px", borderBottom: `1px solid ${T?.border || "#2a2a35"}` }}>
+          <div style={labelStyle}>Context</div>
+          <div style={{ fontWeight: 700, fontSize: 12, color: T?.text }}>
+            {item?.name || item?.title || item?.topic || "New action"}
+          </div>
+        </div>
+        <div style={{ flex: 1, padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <label style={labelStyle}>Prompt</label>
+            <textarea
+              value={desiredOutcome}
+              onChange={(event) => setDesiredOutcome(event.target.value)}
+              style={{ ...inputStyle, minHeight: 280, resize: "vertical", lineHeight: 1.5 }}
+            />
+          </div>
+        </div>
+        <div style={{ padding: 16, borderTop: `1px solid ${T?.border || "#2a2a35"}` }}>
+          <button
+            onClick={copyPrompt}
+            disabled={submitState.state === "submitting" || !desiredOutcome.trim()}
+            style={{
+              width: "100%",
+              background: `linear-gradient(135deg, ${T?.tier?.T2 || "#4fc3f7"}, ${T?.tier?.T3 || "#66bb6a"})`,
+              border: "none",
+              borderRadius: 8,
+              padding: "12px 16px",
+              color: "#111",
+              fontWeight: 800,
+              fontSize: 13,
+              cursor: submitState.state === "submitting" ? "wait" : "pointer",
+              opacity: submitState.state === "submitting" || !desiredOutcome.trim() ? 0.55 : 1,
+              fontFamily: T?.font || "sans-serif",
+            }}
+          >
+            {submitState.state === "submitting" ? "Copying..." : "Copy Prompt"}
+          </button>
+          {submitState.message && (
+            <div
+              style={{
+                marginTop: 10,
+                color: submitState.state === "error" ? T?.tier?.T0 || "#e94560" : T?.tier?.T3 || "#66bb6a",
+                fontSize: 10,
+                lineHeight: 1.4,
+              }}
+            >
+              {submitState.message}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  const submit = async () => {
+    if (!onSubmit || !dispatcher) return;
+    setSubmitState({ state: "submitting", message: "Submitting assignment", taskId: "" });
+    try {
+      const result = await onSubmit({
+        title: title.trim(),
+        topic: template?.topic || title,
+        body: preview,
+        priority,
+        requester: "bryan",
+        client_ref: clientRef,
+        template_id: template?.id,
+        property_ref: propertyRef.trim(),
+        jurisdiction,
+        deadline,
+        desired_outcome: desiredOutcome.trim(),
+        evidence: evidence.trim(),
+        human_gates: humanGates,
+      });
+      setSubmitState({
+        state: "submitted",
+        message: result?.deduped ? "Existing assignment loaded" : "Assignment submitted",
+        taskId: result?.task?.id || "",
+      });
+      clearAssignmentDraft(draftKey);
+    } catch (error) {
+      setSubmitState({
+        state: "error",
+        message: error instanceof Error ? error.message : String(error),
+        taskId: "",
+      });
+    }
+  };
 
   return (
     <div
@@ -670,7 +953,7 @@ export const ActionLauncher = ({
         top: 0,
         right: 0,
         bottom: 0,
-        width: 420,
+        width: 460,
         background: T?.panel || "#12121a",
         borderLeft: `2px solid ${T?.tier?.T2 || "#4fc3f7"}`,
         boxShadow: "-4px 0 30px rgba(0,0,0,0.5)",
@@ -755,7 +1038,7 @@ export const ActionLauncher = ({
             <HealthDot state={item.health} size={10} theme={T} />
           )}
           <span style={{ fontWeight: 700, fontSize: 12, color: T?.text }}>
-            {item?.name || item?.topic || "Untitled"}
+            {item?.name || item?.title || item?.topic || "New assignment"}
           </span>
         </div>
         {item?.role && (
@@ -769,7 +1052,7 @@ export const ActionLauncher = ({
             {item.role}
           </div>
         )}
-        {item?.desc && (
+        {(item?.desc || item?.description) && (
           <div
             style={{
               fontSize: 9,
@@ -778,56 +1061,145 @@ export const ActionLauncher = ({
               lineHeight: 1.4,
             }}
           >
-            {item.desc}
+            {item.desc || item.description}
           </div>
         )}
       </div>
 
-      {/* Prompt Editor */}
       <div
         style={{
           flex: 1,
           padding: 16,
           display: "flex",
           flexDirection: "column",
+          gap: 12,
+          overflowY: "auto",
         }}
       >
-        <div
-          style={{
-            fontSize: 10,
-            fontWeight: 700,
-            color: T?.textTert || "#666",
-            textTransform: "uppercase",
-            letterSpacing: 0.5,
-            marginBottom: 8,
-          }}
-        >
-          Starter Prompt (editable)
+        <div>
+          <label style={labelStyle}>Template</label>
+          <select value={templateId} onChange={(event) => setTemplateId(event.target.value)} style={inputStyle}>
+            {taskTemplates.map((candidate) => (
+              <option key={candidate.id} value={candidate.id}>
+                {candidate.name}
+              </option>
+            ))}
+          </select>
         </div>
-        <textarea
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          style={{
-            flex: 1,
-            background: T?.card || "#16161e",
-            border: `1px solid ${T?.border || "#2a2a35"}`,
-            borderRadius: 8,
-            color: T?.text || "#fff",
-            fontFamily: T?.font || "sans-serif",
-            fontSize: 11,
-            lineHeight: 1.6,
-            padding: 12,
-            resize: "none",
-            outline: "none",
-          }}
-        />
+        <div>
+          <label style={labelStyle}>Title</label>
+          <input value={title} onChange={(event) => setTitle(event.target.value)} style={inputStyle} />
+        </div>
+        <div>
+          <label style={labelStyle}>Property / Case Ref</label>
+          <input value={propertyRef} onChange={(event) => setPropertyRef(event.target.value)} style={inputStyle} />
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div>
+            <label style={labelStyle}>Jurisdiction</label>
+            <select value={jurisdiction} onChange={(event) => setJurisdiction(event.target.value)} style={inputStyle}>
+              <option>England</option>
+              <option>Wales</option>
+              <option>Scotland</option>
+              <option>Northern Ireland</option>
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Priority</label>
+            <select value={priority} onChange={(event) => setPriority(event.target.value)} style={inputStyle}>
+              <option value="normal">Normal</option>
+              <option value="high">High</option>
+              <option value="critical">Critical</option>
+              <option value="low">Low</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <label style={labelStyle}>Deadline</label>
+          <input type="date" value={deadline} onChange={(event) => setDeadline(event.target.value)} style={inputStyle} />
+        </div>
+        <div>
+          <label style={labelStyle}>Desired Outcome</label>
+          <textarea
+            value={desiredOutcome}
+            onChange={(event) => setDesiredOutcome(event.target.value)}
+            style={{ ...inputStyle, minHeight: 72, resize: "vertical", lineHeight: 1.5 }}
+          />
+        </div>
+        <div>
+          <label style={labelStyle}>Evidence / Notes</label>
+          <textarea
+            value={evidence}
+            onChange={(event) => setEvidence(event.target.value)}
+            style={{ ...inputStyle, minHeight: 78, resize: "vertical", lineHeight: 1.5 }}
+          />
+        </div>
+        <div>
+          <label style={labelStyle}>Human Gates</label>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+            {gateOptions.map((gate) => (
+              <label key={gate} style={{ display: "flex", alignItems: "center", gap: 6, color: T?.textSec, fontSize: 10 }}>
+                <input
+                  type="checkbox"
+                  checked={humanGates.includes(gate)}
+                  onChange={(event) =>
+                    setHumanGates((current) =>
+                      event.target.checked ? [...current, gate] : current.filter((item) => item !== gate)
+                    )
+                  }
+                />
+                {gate}
+              </label>
+            ))}
+          </div>
+        </div>
+        <div>
+          <label style={labelStyle}>Preview</label>
+          <div
+            style={{
+              ...inputStyle,
+              whiteSpace: "pre-wrap",
+              minHeight: 130,
+              maxHeight: 220,
+              overflowY: "auto",
+              lineHeight: 1.45,
+            }}
+          >
+            {preview}
+          </div>
+        </div>
       </div>
 
-      {/* Action Footer */}
       <div style={{ padding: 16, borderTop: `1px solid ${T?.border || "#2a2a35"}` }}>
-        {!launched ? (
+        {submitState.state === "submitted" ? (
+          <div style={{ textAlign: "center" }}>
+            <div style={{ fontSize: 12, color: T?.tier?.T3 || "#66bb6a", fontWeight: 800, marginBottom: 6 }}>
+              {submitState.message}
+            </div>
+            <div style={{ fontSize: 10, color: T?.textSec || "#999", marginBottom: 10 }}>
+              {submitState.taskId}
+            </div>
+            <button
+              onClick={onClose}
+              style={{
+                background: "transparent",
+                border: `1px solid ${T?.border || "#2a2a35"}`,
+                borderRadius: 6,
+                color: T?.textSec || "#999",
+                padding: "8px 14px",
+                fontSize: 10,
+                fontWeight: 700,
+                cursor: "pointer",
+                fontFamily: T?.font || "sans-serif",
+              }}
+            >
+              Close
+            </button>
+          </div>
+        ) : (
           <button
-            onClick={() => setLaunched(true)}
+            onClick={submit}
+            disabled={submitState.state === "submitting" || !title.trim() || !desiredOutcome.trim()}
             style={{
               width: "100%",
               background: `linear-gradient(135deg, ${T?.tier?.T2 || "#4fc3f7"}, ${T?.tier?.T3 || "#66bb6a"})`,
@@ -837,7 +1209,8 @@ export const ActionLauncher = ({
               color: "#111",
               fontWeight: 800,
               fontSize: 13,
-              cursor: "pointer",
+              cursor: submitState.state === "submitting" ? "wait" : "pointer",
+              opacity: submitState.state === "submitting" || !title.trim() || !desiredOutcome.trim() ? 0.55 : 1,
               fontFamily: T?.font || "sans-serif",
               display: "flex",
               alignItems: "center",
@@ -845,84 +1218,79 @@ export const ActionLauncher = ({
               gap: 8,
             }}
           >
-            {actionLabel}
+            {submitState.state === "submitting" ? "Submitting..." : actionLabel}
           </button>
-        ) : (
-          <div style={{ textAlign: "center" }}>
-            <div
-              style={{
-                fontSize: 11,
-                color: T?.tier?.T3 || "#66bb6a",
-                fontWeight: 700,
-                marginBottom: 6,
-              }}
-            >
-              Prompt Ready
-            </div>
-            <div
-              style={{
-                fontSize: 9,
-                color: T?.textSec || "#999",
-                lineHeight: 1.5,
-              }}
-            >
-              Copy the prompt above and paste into a new{" "}
-              <span
-                style={{
-                  color: T?.tier?.T2 || "#4fc3f7",
-                  fontWeight: 600,
-                }}
-              >
-                /{skillName}
-              </span>{" "}
-              session.
-            </div>
-            <div
-              style={{
-                marginTop: 8,
-                display: "flex",
-                gap: 8,
-                justifyContent: "center",
-              }}
-            >
-              <button
-                onClick={() => {
-                  navigator.clipboard?.writeText(prompt);
-                }}
-                style={{
-                  background: (T?.tier?.T3 || "#66bb6a") + "22",
-                  border: `1px solid ${T?.tier?.T3 || "#66bb6a"}`,
-                  borderRadius: 6,
-                  color: T?.tier?.T3 || "#66bb6a",
-                  padding: "6px 14px",
-                  fontSize: 10,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  fontFamily: T?.font || "sans-serif",
-                }}
-              >
-                Copy Prompt
-              </button>
-              <button
-                onClick={onClose}
-                style={{
-                  background: "transparent",
-                  border: `1px solid ${T?.border || "#2a2a35"}`,
-                  borderRadius: 6,
-                  color: T?.textSec || "#999",
-                  padding: "6px 14px",
-                  fontSize: 10,
-                  fontWeight: 700,
-                  cursor: "pointer",
-                  fontFamily: T?.font || "sans-serif",
-                }}
-              >
-                Close
-              </button>
-            </div>
+        )}
+        {submitState.state === "error" && (
+          <div style={{ marginTop: 10, color: T?.tier?.T0 || "#e94560", fontSize: 10, lineHeight: 1.4 }}>
+            {submitState.message}
           </div>
         )}
       </div>
     </div>
   );
 };
+
+function buildAssignmentBody({ template, title, propertyRef, jurisdiction, priority, deadline, desiredOutcome, evidence, humanGates }) {
+  return [
+    `Assignment: ${title || "Untitled estate-agent task"}`,
+    `Template: ${template?.name || "General estate-agent work"}`,
+    `Jurisdiction: ${jurisdiction || "England"}`,
+    `Priority: ${priority || "normal"}`,
+    propertyRef ? `Property / case ref: ${propertyRef}` : "Property / case ref: Not provided",
+    deadline ? `Deadline: ${deadline}` : "Deadline: Not provided",
+    "",
+    "Desired outcome:",
+    desiredOutcome || "Not provided",
+    "",
+    "Evidence / notes:",
+    evidence || "Not provided",
+    "",
+    "Human approval gates:",
+    humanGates?.length ? humanGates.map((gate) => `- ${gate}`).join("\n") : "None selected",
+    "",
+    "Instructions:",
+    template?.instructions || "Prepare an audit-ready response, route specialist work as needed, and block if mandatory evidence or human approval is missing.",
+  ].join("\n");
+}
+
+function assignmentDraftKey(dispatcher, item) {
+  if (!dispatcher) return "";
+  const scope = [
+    dispatcher.teamId || "estate-agent-uk",
+    dispatcher.useCaseId || "branch-operations",
+    dispatcher.coordinatorBusAddress || "estate-agent.uk.case",
+    item?.id || item?.busAddress || item?.name || "new-assignment",
+  ]
+    .map((part) => encodeURIComponent(part))
+    .join(":");
+  return `bridge:assignment-draft:v1:${scope}`;
+}
+
+function readAssignmentDraft(key) {
+  if (!key || typeof window === "undefined") return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeAssignmentDraft(key, draft) {
+  if (!key || typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify({ ...draft, updatedAt: new Date().toISOString() }));
+  } catch {
+    // Draft preservation is best-effort only.
+  }
+}
+
+function clearAssignmentDraft(key) {
+  if (!key || typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(key);
+  } catch {
+    // Draft preservation is best-effort only.
+  }
+}
