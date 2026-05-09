@@ -13,13 +13,23 @@
  * <Bridge config={config} />
  */
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { defaultTheme, createTheme } from "./theme";
 import { DetailDrawer, ActionLauncher } from "./components";
 import {
+  createBridgeImport,
+  decideBridgeApproval,
+  fetchBridgeResource,
+  fetchBridgeTasks,
+  fetchDispatcherIdentity,
+  submitBridgeTask
+} from "./dispatcherClient";
+import {
   EntityGrid, KanbanBoard, CapabilitiesGrid, PatternsGrid,
   IntegrationsGrid, MetricsPanel, ObjectiveStack, TaskBoard,
-  OutcomeGrid, QuadrantBalance, DriftDetection
+  OutcomeGrid, QuadrantBalance, DriftDetection, LiveTaskBoard,
+  TenantIdentityPanel, ImportReviewPanel, CaseDetailPanel, ApprovalQueuePanel,
+  AuditTrailPanel, AdminIntegrationSettingsPanel
 } from "./panels";
 
 /**
@@ -29,7 +39,9 @@ import {
 const panelMap = {
   EntityGrid, KanbanBoard, CapabilitiesGrid, PatternsGrid,
   IntegrationsGrid, MetricsPanel, ObjectiveStack, TaskBoard,
-  OutcomeGrid, QuadrantBalance, DriftDetection,
+  OutcomeGrid, QuadrantBalance, DriftDetection, LiveTaskBoard,
+  TenantIdentityPanel, ImportReviewPanel, CaseDetailPanel, ApprovalQueuePanel,
+  AuditTrailPanel, AdminIntegrationSettingsPanel,
 };
 
 /**
@@ -55,12 +67,167 @@ export function Bridge({ config = {} }) {
   const [time, setTime] = useState(new Date());
   const [taskFilter, setTaskFilter] = useState("all");
   const [expandedTask, setExpandedTask] = useState(null);
+  const [dispatcherIdentity, setDispatcherIdentity] = useState(null);
+  const [dispatcherStatus, setDispatcherStatus] = useState({
+    state: config.dispatcher ? "loading" : "disabled",
+    message: config.dispatcher ? "Loading dispatcher identity" : "Dispatcher not configured",
+    checkedAt: null,
+  });
+  const [liveTasks, setLiveTasks] = useState([]);
+  const [liveTaskStatus, setLiveTaskStatus] = useState({
+    state: config.dispatcher ? "idle" : "disabled",
+    message: config.dispatcher ? "Waiting for dispatcher identity" : "Dispatcher not configured",
+    checkedAt: null,
+  });
+  const [appData, setAppData] = useState({});
+  const [appStatus, setAppStatus] = useState({
+    state: config.dispatcher ? "idle" : "disabled",
+    message: config.dispatcher ? "Waiting for dispatcher identity" : "Dispatcher not configured",
+    checkedAt: null,
+  });
 
   // === Live Clock ===
   useEffect(() => {
     const interval = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(interval);
   }, []);
+
+  const refreshLiveTasks = useCallback(async (identityOverride = null) => {
+    if (!config.dispatcher) return [];
+    const identity = identityOverride || dispatcherIdentity;
+    if (!identity) {
+      setLiveTaskStatus({
+        state: "error",
+        message: "Dispatcher identity has not loaded from /me",
+        checkedAt: new Date().toISOString(),
+      });
+      return [];
+    }
+    setLiveTaskStatus((current) => ({ ...current, state: "loading", message: "Refreshing assignments" }));
+    try {
+      const tasks = await fetchBridgeTasks(config.dispatcher, identity);
+      setLiveTasks(tasks);
+      setLiveTaskStatus({
+        state: "ok",
+        message: `${tasks.length} assignment${tasks.length === 1 ? "" : "s"} loaded`,
+        checkedAt: new Date().toISOString(),
+      });
+      return tasks;
+    } catch (error) {
+      setLiveTaskStatus({
+        state: "error",
+        message: error instanceof Error ? error.message : String(error),
+        checkedAt: new Date().toISOString(),
+      });
+      return [];
+    }
+  }, [config.dispatcher, dispatcherIdentity]);
+
+  const refreshAppData = useCallback(async (identityOverride = null) => {
+    if (!config.dispatcher) return {};
+    const identity = identityOverride || dispatcherIdentity;
+    if (!identity) return {};
+
+    setAppStatus((current) => ({ ...current, state: "loading", message: "Refreshing pilot data" }));
+    const resources = ["imports", "cases", "approvals", "audit-events", "integrations", "agent-roster"];
+    const settled = await Promise.allSettled(resources.map((resource) => fetchBridgeResource(config.dispatcher, resource, { limit: 100 })));
+    const next = {};
+    const errors = [];
+
+    settled.forEach((result, index) => {
+      const resource = resources[index];
+      if (result.status === "rejected") {
+        errors.push(`${resource}: ${result.reason instanceof Error ? result.reason.message : String(result.reason)}`);
+        return;
+      }
+      if (resource === "audit-events") next.auditEvents = normalizeAuditEvents(result.value.audit_events || result.value["audit-events"] || []);
+      if (resource === "agent-roster") next.agentRoster = result.value.agents || [];
+      if (resource === "imports") next.importReviews = normalizeImports(result.value.imports || [], identity);
+      if (resource === "cases") next.cases = normalizeCases(result.value.cases || []);
+      if (resource === "approvals") next.approvals = normalizeApprovals(result.value.approvals || []);
+      if (resource === "integrations") next.adminIntegrations = result.value.integrations || [];
+    });
+
+    setAppData(next);
+    setAppStatus({
+      state: errors.length ? "error" : "ok",
+      message: errors.length ? errors[0] : "Pilot data loaded",
+      checkedAt: new Date().toISOString(),
+    });
+    return next;
+  }, [config.dispatcher, dispatcherIdentity]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refreshDispatcher() {
+      if (!config.dispatcher) {
+        setDispatcherIdentity(null);
+        setDispatcherStatus({
+          state: "disabled",
+          message: "Dispatcher not configured",
+          checkedAt: null,
+        });
+        setLiveTasks([]);
+        setLiveTaskStatus({
+          state: "disabled",
+          message: "Dispatcher not configured",
+          checkedAt: null,
+        });
+        return;
+      }
+
+      setDispatcherStatus((current) => ({
+        ...current,
+        state: "loading",
+        message: "Loading dispatcher identity",
+      }));
+      try {
+        const identity = await fetchDispatcherIdentity(config.dispatcher);
+        if (cancelled) return;
+        setDispatcherIdentity(identity);
+        setDispatcherStatus({
+          state: "ok",
+          message: "Dispatcher identity loaded",
+          checkedAt: identity.fetchedAt,
+        });
+        await Promise.all([refreshLiveTasks(identity), refreshAppData(identity)]);
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : String(error);
+        setDispatcherIdentity(null);
+        setLiveTasks([]);
+        setAppData({});
+        setDispatcherStatus({
+          state: "error",
+          message,
+          checkedAt: new Date().toISOString(),
+        });
+        setLiveTaskStatus({
+          state: "error",
+          message: `Identity required before loading assignments: ${message}`,
+          checkedAt: new Date().toISOString(),
+        });
+        setAppStatus({
+          state: "error",
+          message: `Identity required before loading pilot data: ${message}`,
+          checkedAt: new Date().toISOString(),
+        });
+      }
+    }
+
+    setDispatcherIdentity(null);
+    setLiveTasks([]);
+    setAppData({});
+    refreshDispatcher();
+    const interval = config.dispatcher
+      ? setInterval(refreshDispatcher, config.dispatcher.pollIntervalMs || 15000)
+      : null;
+    return () => {
+      cancelled = true;
+      if (interval) clearInterval(interval);
+    };
+  }, [config.dispatcher]);
 
   // === Mode Management ===
   const currentModeObj = useMemo(
@@ -90,6 +257,17 @@ export function Bridge({ config = {} }) {
     [activeTab, currentModeObj]
   );
 
+  const mergedData = useMemo(
+    () => ({
+      ...config.data,
+      ...appData,
+      tenant: dispatcherIdentity?.tenant || config.data?.tenant,
+      branch: dispatcherIdentity?.branch || config.data?.branch,
+      requester: dispatcherIdentity?.requester || config.data?.requester,
+    }),
+    [config.data, appData, dispatcherIdentity]
+  );
+
   // === Handlers ===
   const handleModeToggle = (newModeId) => {
     setMode(newModeId);
@@ -112,6 +290,33 @@ export function Bridge({ config = {} }) {
     if (config.onAction) {
       config.onAction(item);
     }
+  };
+
+  const handleAssignmentSubmit = async (payload) => {
+    if (!dispatcherIdentity) {
+      throw new Error("Dispatcher identity has not loaded from /bridge-api/me");
+    }
+    const result = await submitBridgeTask(config.dispatcher, payload, dispatcherIdentity);
+    await refreshLiveTasks(dispatcherIdentity);
+    return result;
+  };
+
+  const handleCreateImport = async (input) => {
+    if (!dispatcherIdentity) {
+      throw new Error("Dispatcher identity has not loaded from /bridge-api/me");
+    }
+    const result = await createBridgeImport(config.dispatcher, input);
+    await refreshAppData(dispatcherIdentity);
+    return result;
+  };
+
+  const handleApprovalDecision = async (approvalId, decision, decisionNote = "") => {
+    if (!dispatcherIdentity) {
+      throw new Error("Dispatcher identity has not loaded from /bridge-api/me");
+    }
+    const result = await decideBridgeApproval(config.dispatcher, approvalId, decision, decisionNote);
+    await refreshAppData(dispatcherIdentity);
+    return result;
   };
 
   const handleActionClose = () => {
@@ -185,9 +390,21 @@ export function Bridge({ config = {} }) {
     headerRight: {
       display: "flex",
       alignItems: "center",
-      gap: "16px",
+      gap: "10px",
       fontSize: "12px",
       color: theme.textSec,
+    },
+    assignButton: {
+      border: `1px solid ${theme.tier.T2}`,
+      background: `${theme.tier.T2}22`,
+      color: theme.tier.T2,
+      borderRadius: 6,
+      padding: "7px 10px",
+      fontSize: 11,
+      fontWeight: 800,
+      cursor: "pointer",
+      fontFamily: theme.font,
+      whiteSpace: "nowrap",
     },
     clock: {
       fontFamily: "monospace",
@@ -381,6 +598,22 @@ export function Bridge({ config = {} }) {
           </div>
 
           <div style={styles.headerRight}>
+            {config.dispatcher && (
+              <button
+                style={styles.assignButton}
+                onClick={() =>
+                  handleAction({
+                    id: "new-assignment",
+                    name: "New assignment",
+                    title: "New assignment",
+                    skill: "case",
+                    description: "Create a new handoff for the estate-agent team coordinator.",
+                  })
+                }
+              >
+                + Assign Work
+              </button>
+            )}
             <div style={styles.clock}>
               {time.toLocaleTimeString("en-US", {
                 hour: "2-digit",
@@ -444,11 +677,20 @@ export function Bridge({ config = {} }) {
           <div style={styles.panelContainer}>
             {PanelComponent ? (
               <PanelComponent
-                data={config.data}
+                data={mergedData}
                 theme={theme}
                 onSelect={handleItemSelect}
                 selectedItem={selectedItem}
                 onAction={handleAction}
+                liveTasks={liveTasks}
+                liveTaskStatus={liveTaskStatus}
+                dispatcher={config.dispatcher}
+                dispatcherIdentity={dispatcherIdentity}
+                dispatcherStatus={dispatcherStatus}
+                appStatus={appStatus}
+                onRefreshTasks={() => refreshLiveTasks()}
+                onCreateImport={handleCreateImport}
+                onDecideApproval={handleApprovalDecision}
               />
             ) : (
               <div style={{ color: theme.textTert, padding: "20px" }}>
@@ -497,10 +739,70 @@ export function Bridge({ config = {} }) {
           getStarterPrompt={config.getStarterPrompt}
           actionLabel={config.actionLabel || "Start Session"}
           theme={theme}
+          dispatcher={config.dispatcher}
+          dispatcherIdentity={dispatcherIdentity}
+          dispatcherStatus={dispatcherStatus}
+          taskTemplates={config.taskTemplates || []}
+          onSubmit={handleAssignmentSubmit}
         />
       )}
     </>
   );
+}
+
+function normalizeImports(imports, identity) {
+  return imports.map((entry) => ({
+    id: entry.id,
+    source: entry.source || "manual_csv",
+    name: entry.filename || entry.entity_type || "Manual import",
+    status: entry.status || "validated",
+    records: entry.row_count || 0,
+    exceptions: Array.isArray(entry.exceptions) ? entry.exceptions.length : 0,
+    branch: identity?.branch?.name || entry.branch_id,
+    summary: `${entry.entity_type || "records"} import`,
+    nextAction: entry.status === "validated",
+  }));
+}
+
+function normalizeCases(cases) {
+  return cases.map((entry) => ({
+    id: entry.id,
+    ref: entry.property_ref || entry.contact_ref || entry.id,
+    title: entry.title,
+    stage: entry.status || "open",
+    priority: entry.priority || "normal",
+    client: entry.contact_ref,
+    property: entry.property_ref,
+    nextMilestone: entry.next_milestone || entry.case_type || entry.type,
+    due: entry.due,
+    summary: entry.summary,
+    risks: entry.risk_flags || [],
+  }));
+}
+
+function normalizeApprovals(approvals) {
+  return approvals.map((entry) => ({
+    id: entry.id,
+    gate: entry.kind || "approval",
+    title: entry.proposed_action || entry.kind || "Approval",
+    status: entry.status || "pending",
+    caseRef: entry.case_id || entry.task_id || "unlinked",
+    approver: entry.decided_by_user_id || entry.decided_by || "human gate",
+    due: entry.due,
+    reason: entry.policy_reason,
+  }));
+}
+
+function normalizeAuditEvents(events) {
+  return events.map((entry) => ({
+    id: entry.id,
+    at: entry.created_at || entry.at,
+    action: entry.event_type || entry.action,
+    actor: entry.actor_user_id || entry.actor_id || entry.actor,
+    target: entry.entity_id || entry.metadata?.case_id || entry.metadata?.task_id || entry.metadata?.approval_id || entry.branch_id,
+    status: entry.status || "logged",
+    summary: entry.summary || (typeof entry.metadata === "object" ? JSON.stringify(entry.metadata) : ""),
+  }));
 }
 
 export default Bridge;

@@ -15,9 +15,11 @@ harness/
 │   └── skill.md.template  ← Template for skill definitions
 ├── examples/
 │   ├── startup-ops.yml    ← Example: 4-agent startup team
-│   └── consulting-practice.yml ← Example: solo consultant with agent fleet
+│   ├── consulting-practice.yml ← Example: solo consultant with agent fleet
+│   └── managed-fleet.yml  ← Example: mixed Claude Code + Managed Agents fleet
 └── generated/             ← Created by boot prompt (gitignored)
     ├── bridge-config.js
+    ├── managed-agents.json
     ├── orchestrator/CLAUDE.md
     ├── builder/CLAUDE.md
     └── ...
@@ -37,6 +39,50 @@ Together, they give you:
 4. **A control room** (Bridge dashboard) — visual status of the whole fleet
 5. **Decision authority** — clear boundaries on what's autonomous vs. needs human approval
 6. **Audit trail** — every message on the bus is a record of what happened
+
+## Anthropic Managed Agents
+
+By default, the harness preserves the existing Claude Code/manual workflow:
+every agent gets a generated `harness/generated/{agent.id}/CLAUDE.md` file and
+can be started by pasting that file into a Claude session.
+
+Anthropic Managed Agents are an additive runtime option for agents that should
+be enrolled and run through `bridge-dispatcher`. Add `runtime: managed`,
+`model`, and the managed-agent metadata to the relevant agent. The boot prompt
+will still generate the normal CLAUDE.md files, and will additionally write
+`harness/generated/managed-agents.json` for dispatcher/bootstrap handoff.
+
+```yaml
+agents:
+  - id: nightly-analyst
+    name: Nightly Analyst
+    tier: T2
+    role: "Runs scheduled analysis and posts outcomes to the bus"
+    status: staged
+    runtime: managed
+    model: "claude-sonnet-4-5"
+    bus_address: "managed.analytics.nightly"
+    managed:
+      team_id: "team-growth"
+      use_case_id: "daily-analysis"
+      cadence_minutes: 1440
+    memory:
+      shared: ["mem_growth_shared"]
+      private: ["mem_nightly_analyst"]
+    outcome:
+      rubric_file: "harness/rubrics/daily-analysis.md"
+      max_iterations: 2
+    multiagent:
+      type: "review"
+      agents: ["nightly-analyst", "outcome-reviewer"]
+```
+
+Dispatcher runbook pointer: after running `BOOT_PROMPT.md`, hand
+`harness/generated/managed-agents.json` to the internal bridge-dispatcher flow
+documented in `/Users/bryanj/dev/bridge-dispatcher/docs/ARCHITECTURE.md`.
+Manual fallback remains the generated `harness/generated/{agent.id}/CLAUDE.md`
+files; use them when Managed Agents credentials, environment provisioning, or
+dispatcher bootstrap are unavailable.
 
 ## Quick start
 
@@ -80,6 +126,7 @@ Open a Claude session (Code, Cowork, or Chat) and paste the contents of `BOOT_PR
 - Parse your agent definitions
 - Deploy the bus schema (if Supabase is connected)
 - Generate per-agent CLAUDE.md files
+- Generate `managed-agents.json` when `runtime: managed` agents exist
 - Create a Bridge config wired to your agents
 - Seed the bus with a bootstrap message
 
@@ -100,6 +147,17 @@ Open a Claude session (Code, Cowork, or Chat) and paste the contents of `BOOT_PR
 | `status` | string | yes | active, staged, planned, concept, gap |
 | `icon` | string | no | Emoji or icon identifier |
 | `bus_address` | string | yes | Entity ID for bus routing |
+| `runtime` | string | no | Runtime adapter. Omit for Claude Code/manual behavior; use `managed` for Anthropic Managed Agents via bridge-dispatcher |
+| `model` | string | no | Anthropic model for `runtime: managed` agents |
+| `managed.team_id` | string | no | Dispatcher tenant boundary for a managed agent |
+| `managed.use_case_id` | string | no | Dispatcher workload boundary within a team |
+| `managed.cadence_minutes` | number | no | Optional managed-agent cadence for scheduled work |
+| `memory.shared` | list | no | Shared memory store ids made available to the agent |
+| `memory.private` | list | no | Private memory store ids for this agent only |
+| `outcome.rubric_file` | string | no | Local rubric file used by outcome review |
+| `outcome.max_iterations` | number | no | Maximum outcome revision attempts |
+| `multiagent.type` | string | no | Optional Managed Agents multiagent mode |
+| `multiagent.agents` | list | no | Local harness agent ids resolved by bootstrap to managed agent/version placeholders |
 | `tools` | list | no | MCP tools / integrations needed |
 | `objectives` | list | no | Objective IDs this agent serves |
 | `connections` | list | no | Agent IDs this agent communicates with |
@@ -144,5 +202,6 @@ Guardians (T4) are special: they answer only to the human operator and cannot be
 
 - `examples/startup-ops.yml` — 4 agents for a startup CTO (PM, Eng Lead, Support, Infra Monitor)
 - `examples/consulting-practice.yml` — 4 agents for a solo consultant (Chief of Staff, Prospector, Content Engine, Admin)
+- `examples/managed-fleet.yml` — mixed manual and Anthropic Managed Agents metadata
 
 Copy one, rename to `agents.yml`, edit to match your world.

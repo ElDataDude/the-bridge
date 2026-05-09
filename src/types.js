@@ -108,6 +108,93 @@
  */
 
 /**
+ * @typedef {Object} DispatcherConfig
+ * @description Tenant-safe dispatcher proxy settings. Runtime identity is fetched from /me.
+ * @property {string} [proxyBase] — Same-origin API prefix, defaults to "/bridge-api"
+ * @property {number} [pollIntervalMs] — Task and identity polling interval
+ * @property {number} [limit] — Task fetch limit
+ * @property {RequestCredentials} [credentials] — Fetch credentials mode, defaults to "same-origin"
+ */
+
+/**
+ * @typedef {Object} DispatcherIdentity
+ * @description Sanitised identity profile returned from /bridge-api/me.
+ * @property {{id?: string, name?: string}} [tenant] — Tenant/account identity
+ * @property {{id?: string, name?: string}} [branch] — Branch/office identity
+ * @property {{id?: string, name?: string, email?: string, role?: string}} [requester] — Current requester
+ * @property {{teamId?: string, useCaseId?: string, coordinatorBusAddress?: string}} [scope] — Dispatcher task scope
+ * @property {Object} [context] — Sanitised context displayed by the cockpit
+ * @property {string[]} [capabilities] — Capabilities granted to this requester
+ * @property {string} [fetchedAt] — ISO timestamp for the identity fetch
+ */
+
+/**
+ * @typedef {Object} ImportReview
+ * @description Tenant-scoped import batch awaiting review.
+ * @property {string} id
+ * @property {string} name
+ * @property {string} source
+ * @property {string} status — "pending" | "review" | "loaded" | "blocked"
+ * @property {number} [records]
+ * @property {number} [exceptions]
+ * @property {string} [summary]
+ * @property {string} [nextAction]
+ */
+
+/**
+ * @typedef {Object} CaseRecord
+ * @description Branch case summary for the cockpit case detail panel.
+ * @property {string} id
+ * @property {string} ref
+ * @property {string} title
+ * @property {string} [client]
+ * @property {string} [property]
+ * @property {string} [stage]
+ * @property {string} [priority]
+ * @property {string} [owner]
+ * @property {string} [due]
+ * @property {string} [nextMilestone]
+ * @property {string} [summary]
+ * @property {string[]} [risks]
+ */
+
+/**
+ * @typedef {Object} ApprovalItem
+ * @description Human approval gate exposed in the cockpit queue.
+ * @property {string} id
+ * @property {string} caseRef
+ * @property {string} title
+ * @property {string} gate
+ * @property {string} status — "queued" | "pending" | "blocked" | "approved"
+ * @property {string} [approver]
+ * @property {string} [due]
+ * @property {string} [reason]
+ */
+
+/**
+ * @typedef {Object} AuditEvent
+ * @description Immutable or append-only operational event shown in the audit panel.
+ * @property {string} id
+ * @property {string} at
+ * @property {string} actor
+ * @property {string} action
+ * @property {string} target
+ * @property {string} [status]
+ * @property {string} [summary]
+ */
+
+/**
+ * @typedef {Object} AdminIntegrationSetting
+ * @description Tenant admin integration posture. Sensitive values should be booleans or omitted.
+ * @property {string} id
+ * @property {string} name
+ * @property {string} type
+ * @property {string} status
+ * @property {string} [description]
+ * @property {Object} [settings]
+ */
+
+/**
  * @typedef {Object} BusVitals
  * @description Flexible metric container — key-value store with metadata.
  * @property {string} [label] — Metric name/label
@@ -193,8 +280,17 @@
  * @property {Capability[]} [data.capabilities] — System capabilities
  * @property {Pattern[]} [data.patterns] — Proven patterns
  * @property {Integration[]} [data.integrations] — Connected systems
+ * @property {{id?: string, name?: string}} [data.tenant] — Tenant/account profile
+ * @property {{id?: string, name?: string}} [data.branch] — Branch/office profile
+ * @property {ImportReview[]} [data.importReviews] — Import review batches
+ * @property {CaseRecord[]} [data.cases] — Branch case summaries
+ * @property {ApprovalItem[]} [data.approvals] — Human approval queue
+ * @property {AuditEvent[]} [data.auditEvents] — Recent audit trail entries
+ * @property {AdminIntegrationSetting[]} [data.adminIntegrations] — Admin integration settings
  * @property {Outcome[]} [data.outcomes] — Strategic outcomes
  * @property {Quadrant[]} [data.quadrants] — Portfolio quadrants
+ * @property {DispatcherConfig} [dispatcher] — Tenant-safe dispatcher proxy settings
+ * @property {Object[]} [taskTemplates] — Templates used by dispatcher task submission
  * @property {Object} [theme] — Theme object (from theme.js)
  * @property {Function} [onAction] — Callback: (actionTarget, context) => void
  * @property {string} [footer] — Footer text or JSX
