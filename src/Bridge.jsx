@@ -15,7 +15,7 @@
 
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { defaultTheme, createTheme } from "./theme";
-import { DetailDrawer, ActionLauncher } from "./components";
+import { DetailDrawer, ActionLauncher, HelpCallout, HelpIcon, Tooltip, EmptyState } from "./components";
 import {
   createBridgeImport,
   decideBridgeApproval,
@@ -85,6 +85,7 @@ export function Bridge({ config = {} }) {
     message: config.dispatcher ? "Waiting for dispatcher identity" : "Dispatcher not configured",
     checkedAt: null,
   });
+  const [onboardingHidden, setOnboardingHidden] = useState(false);
 
   // === Live Clock ===
   useEffect(() => {
@@ -256,6 +257,7 @@ export function Bridge({ config = {} }) {
       currentModeObj?.tabs?.[0],
     [activeTab, currentModeObj]
   );
+  const onboarding = normalizeOnboarding(config.onboarding);
 
   const mergedData = useMemo(
     () => ({
@@ -375,6 +377,9 @@ export function Bridge({ config = {} }) {
       gap: "8px",
     },
     modePill: (isActive) => ({
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6,
       padding: "6px 12px",
       fontSize: "11px",
       fontWeight: 600,
@@ -487,6 +492,9 @@ export function Bridge({ config = {} }) {
       whiteSpace: "nowrap",
     },
     tab: (isActive, color) => ({
+      display: "inline-flex",
+      alignItems: "center",
+      gap: 6,
       padding: "10px 12px",
       fontSize: "12px",
       fontWeight: isActive ? 600 : 500,
@@ -511,6 +519,14 @@ export function Bridge({ config = {} }) {
       padding: "16px",
       backgroundColor: theme.panel,
       position: "relative",
+    },
+    onboardingActions: {
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: 12,
+      padding: "12px 16px 0",
+      backgroundColor: theme.panel,
     },
     footer: {
       backgroundColor: theme.card,
@@ -585,14 +601,16 @@ export function Bridge({ config = {} }) {
 
             <div style={styles.modePills}>
               {config.modes?.map((m) => (
-                <button
-                  key={m.id}
-                  style={styles.modePill(m.id === mode)}
-                  onClick={() => handleModeToggle(m.id)}
-                  title={m.subtitle}
-                >
-                  {m.label}
-                </button>
+                <span key={m.id} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                  <button
+                    style={styles.modePill(m.id === mode)}
+                    onClick={() => handleModeToggle(m.id)}
+                    aria-label={`${m.label}${m.subtitle ? `: ${m.subtitle}` : ""}`}
+                  >
+                    {m.label}
+                  </button>
+                  <HelpIcon help={m.help || m.subtitle} label={`${m.label} help`} theme={theme} />
+                </span>
               ))}
             </div>
           </div>
@@ -630,7 +648,10 @@ export function Bridge({ config = {} }) {
             {currentModeObj.stats.map((stat, idx) => (
               <div key={idx} style={styles.statPill}>
                 <div style={styles.statValue(stat.color)}>{stat.value}</div>
-                <div style={styles.statLabel}>{stat.label}</div>
+                <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                  <div style={styles.statLabel}>{stat.label}</div>
+                  <HelpIcon help={stat.help} label={`${stat.label} help`} theme={theme} />
+                </div>
               </div>
             ))}
           </div>
@@ -641,17 +662,18 @@ export function Bridge({ config = {} }) {
           <div style={styles.crewBar}>
             <div style={styles.crewAvatars}>
               {currentModeObj.crew.map((member) => (
-                <div
-                  key={member.letter}
-                  style={styles.avatar(member.colors)}
-                  title={`${member.name} — ${member.role}`}
-                >
-                  {member.letter}
-                </div>
+                <Tooltip key={member.letter} content={member.help || `${member.name}${member.role ? `: ${member.role}` : ""}`} theme={theme}>
+                  <button type="button" style={{ ...styles.avatar(member.colors), cursor: "help", padding: 0 }} aria-label={`${member.name}${member.role ? `: ${member.role}` : ""}`}>
+                    {member.letter}
+                  </button>
+                </Tooltip>
               ))}
             </div>
             <div style={styles.crewInfo}>
-              <div style={styles.crewTagline}>{currentModeObj.tagline}</div>
+              <div style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <div style={styles.crewTagline}>{currentModeObj.tagline}</div>
+                <HelpIcon help={currentModeObj.crewHelp} label="Crew help" theme={theme} />
+              </div>
               <div style={styles.crewSubtitle}>{currentModeObj.subtitle}</div>
             </div>
           </div>
@@ -661,20 +683,55 @@ export function Bridge({ config = {} }) {
         {currentModeObj?.tabs && currentModeObj.tabs.length > 0 && (
           <div style={styles.tabBar}>
             {currentModeObj.tabs.map((tab) => (
-              <button
-                key={tab.id}
-                style={styles.tab(tab.id === activeTab, currentModeObj.color)}
-                onClick={() => handleTabSelect(tab.id)}
-              >
-                {tab.label}
-              </button>
+              <span key={tab.id} style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                <button
+                  style={styles.tab(tab.id === activeTab, currentModeObj.color)}
+                  onClick={() => handleTabSelect(tab.id)}
+                >
+                  {tab.label}
+                </button>
+                <HelpIcon help={tab.help} label={`${tab.label} help`} theme={theme} />
+              </span>
             ))}
+          </div>
+        )}
+
+        {onboarding && !onboardingHidden && (
+          <div style={styles.onboardingActions}>
+            <div style={{ flex: 1 }}>
+              <HelpCallout title={onboarding.title} help={onboarding.body} theme={theme} />
+            </div>
+            <button
+              type="button"
+              onClick={() => setOnboardingHidden(true)}
+              style={{
+                background: "transparent",
+                border: `1px solid ${theme.border}`,
+                borderRadius: 6,
+                color: theme.textSec,
+                cursor: "pointer",
+                fontFamily: theme.font,
+                fontSize: 10,
+                fontWeight: 800,
+                marginBottom: 12,
+                padding: "7px 9px",
+              }}
+            >
+              Dismiss
+            </button>
           </div>
         )}
 
         {/* Main Content */}
         <div style={styles.mainContent}>
           <div style={styles.panelContainer}>
+            {(currentModeObj?.help || currentTab?.help) && (
+              <HelpCallout
+                title={currentTab?.help ? `${currentTab.label} Help` : `${currentModeObj.label} Help`}
+                help={currentTab?.help || currentModeObj?.help}
+                theme={theme}
+              />
+            )}
             {PanelComponent ? (
               <PanelComponent
                 data={mergedData}
@@ -693,9 +750,7 @@ export function Bridge({ config = {} }) {
                 onDecideApproval={handleApprovalDecision}
               />
             ) : (
-              <div style={{ color: theme.textTert, padding: "20px" }}>
-                Panel not found: {currentTab?.panel}
-              </div>
+              <EmptyState title="Panel not found" description={currentTab?.panel} theme={theme} />
             )}
 
             {/* Detail Drawer */}
@@ -721,12 +776,14 @@ export function Bridge({ config = {} }) {
               <div key={idx} style={styles.indicator}>
                 <div style={styles.statusDot(ind.status)} />
                 <span>{ind.label}</span>
+                <HelpIcon help={ind.help} label={`${ind.label} help`} theme={theme} />
               </div>
             ))}
           </div>
 
           <div style={styles.footerRight}>
             {config.footer?.right || "v0.1.0"}
+            <HelpIcon help={config.footer?.help} label="Footer help" theme={theme} />
           </div>
         </div>
       </div>
@@ -744,6 +801,7 @@ export function Bridge({ config = {} }) {
           dispatcherStatus={dispatcherStatus}
           taskTemplates={config.taskTemplates || []}
           onSubmit={handleAssignmentSubmit}
+          help={config.data?.help?.actionLauncher || config.help?.actionLauncher}
         />
       )}
     </>
@@ -790,6 +848,9 @@ function normalizeApprovals(approvals) {
     approver: entry.decided_by_user_id || entry.decided_by || "human gate",
     due: entry.due,
     reason: entry.policy_reason,
+    requester: entry.requester || entry.requester_user_id,
+    scope: entry.scope || entry.team_id || entry.use_case_id,
+    consequence: entry.consequence || entry.policy_reason,
   }));
 }
 
@@ -803,6 +864,17 @@ function normalizeAuditEvents(events) {
     status: entry.status || "logged",
     summary: entry.summary || (typeof entry.metadata === "object" ? JSON.stringify(entry.metadata) : ""),
   }));
+}
+
+function normalizeOnboarding(onboarding) {
+  if (!onboarding) return null;
+  if (typeof onboarding === "string") {
+    return { title: "Onboarding", body: onboarding };
+  }
+  return {
+    title: onboarding.title || "Onboarding",
+    body: onboarding.body || onboarding.description || onboarding.help,
+  };
 }
 
 export default Bridge;

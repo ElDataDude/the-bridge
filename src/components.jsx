@@ -15,7 +15,7 @@
  * }
  */
 
-import React, { useState, useEffect } from "react";
+import React, { useId, useState, useEffect } from "react";
 
 /**
  * Pill — Inline badge/tag component
@@ -44,6 +44,209 @@ export const Pill = ({ label, color, fg = "#fff", small, theme: T }) => (
     {label}
   </span>
 );
+
+export const Tooltip = ({ content, children, theme: T, placement = "top" }) => {
+  const tooltipId = useId();
+  const [open, setOpen] = useState(false);
+  if (!content) return children;
+
+  const child = React.Children.only(children);
+  const vertical = placement === "bottom" ? { top: "calc(100% + 7px)" } : { bottom: "calc(100% + 7px)" };
+  const describedBy = [child.props["aria-describedby"], tooltipId].filter(Boolean).join(" ");
+
+  return (
+    <span
+      style={{ position: "relative", display: "inline-flex", alignItems: "center" }}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={() => setOpen(false)}
+    >
+      {React.cloneElement(child, {
+        "aria-describedby": describedBy,
+        onClick: (event) => {
+          child.props.onClick?.(event);
+          setOpen(true);
+        },
+      })}
+      {open && (
+        <span
+          id={tooltipId}
+          role="tooltip"
+          style={{
+            position: "absolute",
+            left: "50%",
+            transform: "translateX(-50%)",
+            ...vertical,
+            zIndex: 500,
+            width: 240,
+            maxWidth: "min(240px, 80vw)",
+            background: T?.panel || "#12121a",
+            border: `1px solid ${T?.border || "#2a2a35"}`,
+            borderRadius: 6,
+            boxShadow: "0 10px 28px rgba(0,0,0,0.36)",
+            color: T?.textSec || "#999",
+            fontSize: 10,
+            fontWeight: 500,
+            lineHeight: 1.45,
+            padding: "8px 9px",
+            textTransform: "none",
+            whiteSpace: "normal",
+            pointerEvents: "none",
+          }}
+        >
+          {content}
+        </span>
+      )}
+    </span>
+  );
+};
+
+export const HelpIcon = ({ help, label = "Help", theme: T }) => {
+  if (!help) return null;
+  return (
+    <Tooltip content={help} theme={T}>
+      <button
+        type="button"
+        aria-label={label}
+        style={{
+          width: 18,
+          height: 18,
+          borderRadius: "50%",
+          border: `1px solid ${(T?.border || "#2a2a35")}`,
+          background: (T?.tier?.T2 || "#4fc3f7") + "18",
+          color: T?.tier?.T2 || "#4fc3f7",
+          cursor: "help",
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontSize: 11,
+          fontWeight: 800,
+          lineHeight: 1,
+          padding: 0,
+          flexShrink: 0,
+        }}
+      >
+        ?
+      </button>
+    </Tooltip>
+  );
+};
+
+export const HelpCallout = ({ title, children, help, theme: T }) => {
+  const content = children || help;
+  if (!content) return null;
+  return (
+    <section
+      aria-label={title || "Help"}
+      style={{
+        background: (T?.tier?.T2 || "#4fc3f7") + "10",
+        border: `1px solid ${(T?.tier?.T2 || "#4fc3f7") + "3d"}`,
+        borderRadius: 8,
+        color: T?.textSec || "#999",
+        fontSize: 11,
+        lineHeight: 1.55,
+        marginBottom: 12,
+        padding: "10px 12px",
+      }}
+    >
+      {title && (
+        <div style={{ color: T?.text || "#fff", fontSize: 11, fontWeight: 800, marginBottom: 4 }}>
+          {title}
+        </div>
+      )}
+      <div>{content}</div>
+    </section>
+  );
+};
+
+export const EmptyState = ({ title = "No data", description, action, theme: T }) => (
+  <div
+    role="status"
+    style={{
+      border: `1px dashed ${T?.border || "#2a2a35"}`,
+      borderRadius: 8,
+      color: T?.textTert || "#666",
+      fontSize: 12,
+      lineHeight: 1.5,
+      padding: 20,
+      textAlign: "center",
+    }}
+  >
+    <div style={{ color: T?.textSec || "#999", fontWeight: 800 }}>{title}</div>
+    {description && <div style={{ marginTop: 5 }}>{description}</div>}
+    {action && <div style={{ marginTop: 12 }}>{action}</div>}
+  </div>
+);
+
+export const ConfirmationPanel = ({
+  title = "Confirm decision",
+  actionLabel = "Confirm",
+  cancelLabel = "Cancel",
+  confirmTone = "normal",
+  details = [],
+  auditNote,
+  onAuditNoteChange,
+  onConfirm,
+  onCancel,
+  disabled,
+  theme: T,
+}) => {
+  const confirmColor = confirmTone === "danger" ? T?.tier?.T0 || "#e94560" : T?.tier?.T3 || "#66bb6a";
+  return (
+    <div
+      role="dialog"
+      aria-modal="false"
+      aria-label={title}
+      style={{
+        background: T?.panel || "#12121a",
+        border: `1px solid ${confirmColor}66`,
+        borderRadius: 8,
+        marginTop: 12,
+        padding: 12,
+      }}
+    >
+      <div style={{ color: T?.text || "#fff", fontSize: 12, fontWeight: 800 }}>{title}</div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))", gap: 8, marginTop: 10 }}>
+        {details.map((detail) => (
+          <div key={detail.label} style={{ background: T?.card || "#16161e", border: `1px solid ${T?.border || "#2a2a35"}`, borderRadius: 6, padding: 8 }}>
+            <div style={{ color: T?.textTert || "#666", fontSize: 8, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase" }}>{detail.label}</div>
+            <div style={{ color: T?.textSec || "#999", fontSize: 10, fontWeight: 700, lineHeight: 1.4, marginTop: 4 }}>{detail.value || "Not set"}</div>
+          </div>
+        ))}
+      </div>
+      <label style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 10 }}>
+        <span style={{ color: T?.textTert || "#666", fontSize: 9, fontWeight: 800, letterSpacing: 0.5, textTransform: "uppercase" }}>
+          Audit Note
+        </span>
+        <textarea
+          value={auditNote}
+          onChange={(event) => onAuditNoteChange?.(event.target.value)}
+          style={{
+            background: T?.card || "#16161e",
+            border: `1px solid ${T?.border || "#2a2a35"}`,
+            borderRadius: 6,
+            color: T?.text || "#fff",
+            fontFamily: T?.font || "sans-serif",
+            fontSize: 10,
+            lineHeight: 1.45,
+            minHeight: 64,
+            padding: 8,
+            resize: "vertical",
+          }}
+        />
+      </label>
+      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 10 }}>
+        <button type="button" onClick={onCancel} style={secondaryButtonStyle(T)}>
+          {cancelLabel}
+        </button>
+        <button type="button" onClick={onConfirm} disabled={disabled} style={{ ...secondaryButtonStyle(T), borderColor: `${confirmColor}66`, color: confirmColor, opacity: disabled ? 0.55 : 1 }}>
+          {actionLabel}
+        </button>
+      </div>
+    </div>
+  );
+};
 
 /**
  * StatusDot — Colored status indicator with optional pulse
@@ -191,15 +394,16 @@ export const ProgressBar = ({ pct, color, width = 80, theme: T }) => (
  * @param {function} onClick — Click handler
  * @param {object} theme — Theme object
  */
-export const ActionIcon = ({ onClick, theme: T }) => {
+export const ActionIcon = ({ onClick, help, label = "Start action", theme: T }) => {
   const color = T?.tier?.T2 || "#4fc3f7";
-  return (
+  const button = (
     <button
+      type="button"
+      aria-label={label}
       onClick={(e) => {
         e.stopPropagation();
-        onClick?.();
+        onClick?.(e);
       }}
-      title="Start action"
       style={{
         background: color + "22",
         border: `1px solid ${color}55`,
@@ -225,6 +429,11 @@ export const ActionIcon = ({ onClick, theme: T }) => {
       </svg>
     </button>
   );
+  return help ? (
+    <Tooltip content={help} theme={T}>
+      {button}
+    </Tooltip>
+  ) : button;
 };
 
 /**
@@ -691,6 +900,7 @@ export const ActionLauncher = ({
   dispatcherStatus,
   taskTemplates = [],
   onSubmit,
+  help = {},
 }) => {
   const initialTemplate = taskTemplates.find((template) => template.id === item?.template_id) || taskTemplates[0];
   const [templateId, setTemplateId] = useState(initialTemplate?.id || "");
@@ -754,6 +964,7 @@ export const ActionLauncher = ({
     "Complaint settlement",
   ];
 
+  const fieldHelp = typeof help === "object" ? help : {};
   const inputStyle = {
     background: T?.card || "#16161e",
     border: `1px solid ${T?.border || "#2a2a35"}`,
@@ -843,7 +1054,10 @@ export const ActionLauncher = ({
         </div>
         <div style={{ flex: 1, padding: 16, display: "flex", flexDirection: "column", gap: 12 }}>
           <div>
-            <label style={labelStyle}>Prompt</label>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <label style={labelStyle}>Prompt</label>
+              <HelpIcon help={fieldHelp.prompt || "Edit the starter prompt before copying it into a separate work session."} label="Prompt help" theme={T} />
+            </div>
             <textarea
               value={desiredOutcome}
               onChange={(event) => setDesiredOutcome(event.target.value)}
@@ -1088,7 +1302,10 @@ export const ActionLauncher = ({
         }}
       >
         <div>
-          <label style={labelStyle}>Template</label>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+            <label style={labelStyle}>Template</label>
+            <HelpIcon help={fieldHelp.template || "Choose the operating template that frames the assignment body and routing instructions."} label="Template help" theme={T} />
+          </div>
           <select value={templateId} onChange={(event) => setTemplateId(event.target.value)} style={inputStyle}>
             {taskTemplates.map((candidate) => (
               <option key={candidate.id} value={candidate.id}>
@@ -1098,16 +1315,25 @@ export const ActionLauncher = ({
           </select>
         </div>
         <div>
-          <label style={labelStyle}>Title</label>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+            <label style={labelStyle}>Title</label>
+            <HelpIcon help={fieldHelp.title || "Use a specific title that the dispatcher and assignee can audit later."} label="Title help" theme={T} />
+          </div>
           <input value={title} onChange={(event) => setTitle(event.target.value)} style={inputStyle} />
         </div>
         <div>
-          <label style={labelStyle}>Property / Case Ref</label>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+            <label style={labelStyle}>Property / Case Ref</label>
+            <HelpIcon help={fieldHelp.propertyRef || "Attach a case, property, client, or file reference when one exists."} label="Property ref help" theme={T} />
+          </div>
           <input value={propertyRef} onChange={(event) => setPropertyRef(event.target.value)} style={inputStyle} />
         </div>
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
           <div>
-            <label style={labelStyle}>Jurisdiction</label>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <label style={labelStyle}>Jurisdiction</label>
+              <HelpIcon help={fieldHelp.jurisdiction || "Jurisdiction controls the policy context for property and compliance work."} label="Jurisdiction help" theme={T} />
+            </div>
             <select value={jurisdiction} onChange={(event) => setJurisdiction(event.target.value)} style={inputStyle}>
               <option>England</option>
               <option>Wales</option>
@@ -1116,7 +1342,10 @@ export const ActionLauncher = ({
             </select>
           </div>
           <div>
-            <label style={labelStyle}>Priority</label>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <label style={labelStyle}>Priority</label>
+              <HelpIcon help={fieldHelp.priority || "Priority should reflect operational risk and deadline pressure, not general importance."} label="Priority help" theme={T} />
+            </div>
             <select value={priority} onChange={(event) => setPriority(event.target.value)} style={inputStyle}>
               <option value="normal">Normal</option>
               <option value="high">High</option>
@@ -1126,11 +1355,17 @@ export const ActionLauncher = ({
           </div>
         </div>
         <div>
-          <label style={labelStyle}>Deadline</label>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+            <label style={labelStyle}>Deadline</label>
+            <HelpIcon help={fieldHelp.deadline || "Set a concrete due date when the task has a gate, client promise, or SLA."} label="Deadline help" theme={T} />
+          </div>
           <input type="date" value={deadline} onChange={(event) => setDeadline(event.target.value)} style={inputStyle} />
         </div>
         <div>
-          <label style={labelStyle}>Desired Outcome</label>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+            <label style={labelStyle}>Desired Outcome</label>
+            <HelpIcon help={fieldHelp.desiredOutcome || "Describe the business outcome, owner, and stopping condition for the assignee."} label="Desired outcome help" theme={T} />
+          </div>
           <textarea
             value={desiredOutcome}
             onChange={(event) => setDesiredOutcome(event.target.value)}
@@ -1138,7 +1373,10 @@ export const ActionLauncher = ({
           />
         </div>
         <div>
-          <label style={labelStyle}>Evidence / Notes</label>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+            <label style={labelStyle}>Evidence / Notes</label>
+            <HelpIcon help={fieldHelp.evidence || "Include source facts, caveats, and constraints. Do not paste secrets."} label="Evidence help" theme={T} />
+          </div>
           <textarea
             value={evidence}
             onChange={(event) => setEvidence(event.target.value)}
@@ -1146,7 +1384,10 @@ export const ActionLauncher = ({
           />
         </div>
         <div>
-          <label style={labelStyle}>Human Gates</label>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+            <label style={labelStyle}>Human Gates</label>
+            <HelpIcon help={fieldHelp.humanGates || "Select any decision that must stop for a human before messages, publication, funds, or final terms proceed."} label="Human gates help" theme={T} />
+          </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
             {gateOptions.map((gate) => (
               <label key={gate} style={{ display: "flex", alignItems: "center", gap: 6, color: T?.textSec, fontSize: 10 }}>
@@ -1165,7 +1406,10 @@ export const ActionLauncher = ({
           </div>
         </div>
         <div>
-          <label style={labelStyle}>Preview</label>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+            <label style={labelStyle}>Preview</label>
+            <HelpIcon help={fieldHelp.preview || "This is the exact assignment body submitted to the dispatcher."} label="Preview help" theme={T} />
+          </div>
           <div
             style={{
               ...inputStyle,
@@ -1263,6 +1507,20 @@ function buildAssignmentBody({ template, title, propertyRef, jurisdiction, prior
     "Instructions:",
     template?.instructions || "Prepare an audit-ready response, route specialist work as needed, and block if mandatory evidence or human approval is missing.",
   ].join("\n");
+}
+
+function secondaryButtonStyle(T) {
+  return {
+    background: "transparent",
+    border: `1px solid ${T?.border || "#2a2a35"}`,
+    borderRadius: 6,
+    color: T?.textSec || "#999",
+    cursor: "pointer",
+    fontFamily: T?.font || "sans-serif",
+    fontSize: 10,
+    fontWeight: 800,
+    padding: "7px 9px",
+  };
 }
 
 function makeClientRef(identity) {

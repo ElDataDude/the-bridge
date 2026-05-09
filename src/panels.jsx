@@ -14,6 +14,10 @@ import {
   HealthDot,
   ProgressBar,
   ActionIcon,
+  HelpCallout,
+  HelpIcon,
+  EmptyState,
+  ConfirmationPanel,
 } from "./components";
 import { ageLabel, stageForTask } from "./dispatcherClient";
 
@@ -101,7 +105,7 @@ export const EntityGrid = ({ data, theme: T, onSelect, selectedItem, onAction })
                     <div style={{ fontWeight: 700, fontSize: 12, color: T?.text }}>{entity.name}</div>
                     <div style={{ fontSize: 9, color: T?.textSec }}>{entity.role}</div>
                   </div>
-                  <ActionIcon onClick={(event) => { event.stopPropagation(); onAction?.(entity); }} theme={T} />
+                  <ActionIcon onClick={(event) => { event.stopPropagation(); onAction?.(entity); }} help={entity.help || data?.help?.actionIcons || "Open an action session for this item."} theme={T} />
                 </div>
                 <div style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 8 }}>
                   <HealthDot state={entity.health || "G"} size={8} label={false} theme={T} />
@@ -196,7 +200,7 @@ export const KanbanBoard = ({ data, theme: T, onSelect, selectedItem, onAction }
                     <div style={{ fontWeight: 700, fontSize: 11, color: T?.text }}>
                       {item.title || item.name}
                     </div>
-                    <ActionIcon onClick={(event) => { event.stopPropagation(); onAction?.(item); }} theme={T} />
+                    <ActionIcon onClick={(event) => { event.stopPropagation(); onAction?.(item); }} help={item.help || data?.help?.actionIcons || "Open an action session for this item."} theme={T} />
                   </div>
                   <div style={{ display: "flex", gap: 4, alignItems: "center", marginBottom: 4 }}>
                     {item.health && <HealthDot state={item.health} size={8} label={false} theme={T} />}
@@ -452,7 +456,7 @@ export const ObjectiveStack = ({ data, theme: T, onSelect, selectedItem, onActio
                 <ProgressBar pct={obj.progress} color={T?.tier?.T3} width={120} theme={T} />
               )}
             </div>
-            <ActionIcon onClick={() => onAction?.(obj)} theme={T} />
+            <ActionIcon onClick={() => onAction?.(obj)} help={obj.help || data?.help?.actionIcons || "Open an action session for this item."} theme={T} />
           </div>
         </div>
       ))}
@@ -463,7 +467,8 @@ export const ObjectiveStack = ({ data, theme: T, onSelect, selectedItem, onActio
 /**
  * LiveTaskBoard — Dispatcher-backed estate-agent assignments
  */
-export const LiveTaskBoard = ({ theme: T, onSelect, selectedItem, onAction, liveTasks = [], liveTaskStatus, onRefreshTasks }) => {
+export const LiveTaskBoard = ({ data, theme: T, onSelect, selectedItem, onAction, liveTasks = [], liveTaskStatus, onRefreshTasks }) => {
+  const help = data?.help?.liveBoard;
   const columns = [
     { id: "intake", name: "Intake", hint: "Pending coordinator tasks" },
     { id: "prep", name: "Preparation", hint: "Pending child handoffs" },
@@ -485,6 +490,7 @@ export const LiveTaskBoard = ({ theme: T, onSelect, selectedItem, onAction, live
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", gap: 12 }}>
+      <HelpCallout title="Live Board" help={help} theme={T} />
       <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
         <button
           onClick={() => onAction?.({ id: "new-assignment", name: "New assignment", title: "New assignment", skill: "case" })}
@@ -560,7 +566,7 @@ export const LiveTaskBoard = ({ theme: T, onSelect, selectedItem, onAction, live
                     <div style={{ color: T?.text, fontSize: 11, fontWeight: 800, lineHeight: 1.35 }}>
                       {task.title || task.topic}
                     </div>
-                    <ActionIcon onClick={() => onAction?.(task)} theme={T} />
+                    <ActionIcon onClick={() => onAction?.(task)} help={task.help || "Open this assignment with its current dispatcher context."} theme={T} />
                   </div>
                   <div style={{ color: T?.textTert, fontSize: 9, marginTop: 6, lineHeight: 1.35 }}>
                     {task.to_agent}
@@ -578,9 +584,7 @@ export const LiveTaskBoard = ({ theme: T, onSelect, selectedItem, onAction, live
                 </div>
               ))}
               {byColumn[column.id].length === 0 && (
-                <div style={{ color: T?.textTert, fontSize: 10, padding: 8, lineHeight: 1.4 }}>
-                  No assignments
-                </div>
+                <EmptyState title="No assignments" description={column.hint} theme={T} />
               )}
             </div>
           </div>
@@ -655,6 +659,7 @@ export const TenantIdentityPanel = ({ data, theme: T, dispatcher, dispatcherIden
  */
 export const ImportReviewPanel = ({ data, theme: T, onSelect, selectedItem, onAction, onCreateImport, appStatus }) => {
   const imports = data?.importReviews || [];
+  const help = data?.help?.imports || {};
   const [entityType, setEntityType] = useState("contacts");
   const [filename, setFilename] = useState("manual-import.csv");
   const [csvText, setCsvText] = useState("name,email,phone\n");
@@ -670,7 +675,7 @@ export const ImportReviewPanel = ({ data, theme: T, onSelect, selectedItem, onAc
         entity_type: entityType,
         filename,
         rows,
-        idempotency_key: `manual_csv:${entityType}:${Date.now()}`,
+        idempotency_key: stableImportIdempotencyKey(entityType, filename, csvText),
       });
       setSubmitState({ state: "submitted", message: `${rows.length} row${rows.length === 1 ? "" : "s"} staged` });
     } catch (error) {
@@ -688,31 +693,38 @@ export const ImportReviewPanel = ({ data, theme: T, onSelect, selectedItem, onAc
           </div>
           <Pill label={appStatus?.state || "ready"} color={appStatus?.state === "error" ? T?.tier?.T0 : T?.tier?.T2} fg="#111" small theme={T} />
         </div>
-        <div style={bodyTextStyle(T)}>
-          Contacts, properties, instructions, applicants, viewings, offers, sales, lettings, tenancies, tasks, and documents can be staged for review.
-        </div>
+        <HelpCallout help={help.panel || "Contacts, properties, instructions, applicants, viewings, offers, sales, lettings, tenancies, tasks, and documents can be staged for review."} theme={T} />
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginTop: 12 }}>
-          <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            <span style={surfaceKickerStyle(T)}>Entity</span>
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <span style={surfaceKickerStyle(T)}>Entity</span>
+              <HelpIcon help={help.entityType} label="Entity help" theme={T} />
+            </span>
             <select value={entityType} onChange={(event) => setEntityType(event.target.value)} style={fieldStyle(T)}>
               {["contacts", "properties", "instructions", "applicants", "viewings", "offers", "sales", "lettings", "tenancies", "tasks", "documents"].map((type) => (
                 <option key={type} value={type}>{type}</option>
               ))}
             </select>
-          </label>
-          <label style={{ display: "flex", flexDirection: "column", gap: 5 }}>
-            <span style={surfaceKickerStyle(T)}>Filename</span>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 5 }}>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+              <span style={surfaceKickerStyle(T)}>Filename</span>
+              <HelpIcon help={help.filename} label="Filename help" theme={T} />
+            </span>
             <input value={filename} onChange={(event) => setFilename(event.target.value)} style={fieldStyle(T)} />
-          </label>
+          </div>
         </div>
-        <label style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 10 }}>
-          <span style={surfaceKickerStyle(T)}>CSV Rows</span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 5, marginTop: 10 }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+            <span style={surfaceKickerStyle(T)}>CSV Rows</span>
+            <HelpIcon help={help.csvRows} label="CSV rows help" theme={T} />
+          </span>
           <textarea
             value={csvText}
             onChange={(event) => setCsvText(event.target.value)}
             style={{ ...fieldStyle(T), minHeight: 170, resize: "vertical", lineHeight: 1.45 }}
           />
-        </label>
+        </div>
         <button
           onClick={submitImport}
           disabled={!onCreateImport || submitState.state === "submitting"}
@@ -728,7 +740,7 @@ export const ImportReviewPanel = ({ data, theme: T, onSelect, selectedItem, onAc
       </div>
 
       <div style={listSurfaceStyle({ padding: 0 })}>
-        {imports.length === 0 && <EmptyPanel label="No imports pending review" theme={T} />}
+        {imports.length === 0 && <EmptyState title="No imports pending review" description={help.empty} theme={T} />}
         {imports.map((batch) => (
         <div
           key={batch.id}
@@ -767,7 +779,7 @@ export const CaseDetailPanel = ({ data, theme: T, onSelect }) => {
   const cases = data?.cases || [];
   const [selectedCaseId, setSelectedCaseId] = useState(cases[0]?.id || "");
   const selected = cases.find((caseItem) => caseItem.id === selectedCaseId) || cases[0];
-  if (!cases.length) return <EmptyPanel label="No cases configured" theme={T} />;
+  if (!cases.length) return <EmptyState title="No cases configured" theme={T} />;
 
   return (
     <div style={{ display: "grid", gridTemplateColumns: "minmax(260px, 0.85fr) minmax(320px, 1.15fr)", gap: 12, height: "100%" }}>
@@ -822,19 +834,24 @@ export const CaseDetailPanel = ({ data, theme: T, onSelect }) => {
 /**
  * ApprovalQueuePanel — Human approval gates awaiting decision.
  */
-export const ApprovalQueuePanel = ({ data, theme: T, onSelect, selectedItem, onAction, onDecideApproval }) => {
+export const ApprovalQueuePanel = ({ data, theme: T, onSelect, selectedItem, onAction, onDecideApproval, dispatcherIdentity }) => {
   const approvals = data?.approvals || [];
   const [pendingDecision, setPendingDecision] = useState("");
+  const [confirmation, setConfirmation] = useState(null);
+  const [auditNote, setAuditNote] = useState("");
   const [decisionState, setDecisionState] = useState({ state: "idle", message: "" });
-  if (!approvals.length) return <EmptyPanel label="No approvals queued" theme={T} />;
+  const help = data?.help?.approvals || {};
+  if (!approvals.length) return <EmptyState title="No approvals queued" description={help.empty} theme={T} />;
 
-  const decide = async (approval, decision) => {
+  const decide = async (approval, decision, note) => {
     if (!onDecideApproval) return;
     setPendingDecision(`${approval.id}:${decision}`);
     setDecisionState({ state: "submitting", message: `Submitting ${decision}` });
     try {
-      await onDecideApproval(approval.id, decision, `${decision} from cockpit approval queue`);
+      await onDecideApproval(approval.id, decision, note || `${decision} from cockpit approval queue`);
       setDecisionState({ state: "submitted", message: `Approval ${decision}` });
+      setConfirmation(null);
+      setAuditNote("");
     } catch (error) {
       setDecisionState({ state: "error", message: error instanceof Error ? error.message : String(error) });
     } finally {
@@ -844,6 +861,9 @@ export const ApprovalQueuePanel = ({ data, theme: T, onSelect, selectedItem, onA
 
   return (
     <div style={listSurfaceStyle()}>
+      <div style={wideSurfaceStyle(T)}>
+        <HelpCallout title="Approval Gates" help={help.panel || "Approve or reject only after checking the gate, case, consequence, requester, scope, and audit note."} theme={T} />
+      </div>
       {decisionState.message && (
         <div style={wideSurfaceStyle(T)}>
           <div style={{ color: decisionState.state === "error" ? T?.tier?.T0 : T?.tier?.T3, fontSize: 11, fontWeight: 800 }}>
@@ -870,6 +890,29 @@ export const ApprovalQueuePanel = ({ data, theme: T, onSelect, selectedItem, onA
             {approval.due && <Pill label={approval.due} color={T?.border} small theme={T} />}
           </div>
           {approval.reason && <div style={bodyTextStyle(T)}>{approval.reason}</div>}
+          {confirmation?.approval?.id === approval.id && (
+            <ConfirmationPanel
+              title={`${confirmation.decision === "approved" ? "Approve" : "Reject"} gate`}
+              actionLabel={confirmation.decision === "approved" ? "Confirm approval" : "Confirm rejection"}
+              confirmTone={confirmation.decision === "rejected" ? "danger" : "normal"}
+              auditNote={auditNote}
+              onAuditNoteChange={setAuditNote}
+              onCancel={() => {
+                setConfirmation(null);
+                setAuditNote("");
+              }}
+              onConfirm={() => decide(approval, confirmation.decision, auditNote)}
+              disabled={!auditNote.trim() || Boolean(pendingDecision)}
+              details={[
+                { label: "Gate", value: approval.gate },
+                { label: "Case", value: approval.caseRef },
+                { label: "Consequence", value: approval.consequence || approval.reason },
+                { label: "Requester", value: approval.requester || dispatcherIdentity?.requester?.name || dispatcherIdentity?.requester?.email },
+                { label: "Scope", value: approval.scope || dispatcherIdentity?.scope?.useCaseId || dispatcherIdentity?.scope?.teamId },
+              ]}
+              theme={T}
+            />
+          )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button onClick={(event) => { event.stopPropagation(); onAction?.(approval); }} style={smallActionStyle(T)}>
               Open Gate
@@ -877,14 +920,22 @@ export const ApprovalQueuePanel = ({ data, theme: T, onSelect, selectedItem, onA
             {approval.status !== "approved" && approval.status !== "rejected" && (
               <>
                 <button
-                  onClick={(event) => { event.stopPropagation(); decide(approval, "approved"); }}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setConfirmation({ approval, decision: "approved" });
+                    setAuditNote(`Approved ${approval.gate} for ${approval.caseRef}: `);
+                  }}
                   disabled={!onDecideApproval || Boolean(pendingDecision)}
                   style={{ ...smallActionStyle(T), color: T?.tier?.T3 || "#66bb6a", borderColor: (T?.tier?.T3 || "#66bb6a") + "55" }}
                 >
                   {pendingDecision === `${approval.id}:approved` ? "Approving..." : "Approve"}
                 </button>
                 <button
-                  onClick={(event) => { event.stopPropagation(); decide(approval, "rejected"); }}
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    setConfirmation({ approval, decision: "rejected" });
+                    setAuditNote(`Rejected ${approval.gate} for ${approval.caseRef}: `);
+                  }}
                   disabled={!onDecideApproval || Boolean(pendingDecision)}
                   style={{ ...smallActionStyle(T), color: T?.tier?.T0 || "#e94560", borderColor: (T?.tier?.T0 || "#e94560") + "55" }}
                 >
@@ -904,7 +955,7 @@ export const ApprovalQueuePanel = ({ data, theme: T, onSelect, selectedItem, onA
  */
 export const AuditTrailPanel = ({ data, theme: T, onSelect, selectedItem }) => {
   const events = data?.auditEvents || [];
-  if (!events.length) return <EmptyPanel label="No audit events" theme={T} />;
+  if (!events.length) return <EmptyState title="No audit events" theme={T} />;
 
   return (
     <div style={listSurfaceStyle()}>
@@ -936,7 +987,7 @@ export const AuditTrailPanel = ({ data, theme: T, onSelect, selectedItem }) => {
  */
 export const AdminIntegrationSettingsPanel = ({ data, theme: T, onSelect, selectedItem }) => {
   const settings = data?.adminIntegrations || data?.integrations || [];
-  if (!settings.length) return <EmptyPanel label="No admin integrations configured" theme={T} />;
+  if (!settings.length) return <EmptyState title="No admin integrations configured" theme={T} />;
 
   return (
     <div style={listSurfaceStyle()}>
@@ -1039,7 +1090,7 @@ export const TaskBoard = ({ data, theme: T, onSelect, selectedItem, onAction }) 
               <div style={{ fontWeight: 700, fontSize: 11, color: T?.text }}>
                 {task.title}
               </div>
-              <ActionIcon onClick={(event) => { event.stopPropagation(); onAction?.(task); }} theme={T} />
+              <ActionIcon onClick={(event) => { event.stopPropagation(); onAction?.(task); }} help={task.help || data?.help?.actionIcons || "Open an action session for this item."} theme={T} />
             </div>
             <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
               {task.gragbb && <HealthDot state={task.gragbb} size={8} label={false} theme={T} />}
@@ -1205,7 +1256,7 @@ export const DriftDetection = ({ data, theme: T, onSelect, selectedItem, onActio
                       {item.type} {item.kso && `| ${item.kso}`}
                     </div>
                   </div>
-                  <ActionIcon onClick={(event) => { event.stopPropagation(); onAction?.(item); }} theme={T} />
+                  <ActionIcon onClick={(event) => { event.stopPropagation(); onAction?.(item); }} help={item.help || data?.help?.actionIcons || "Open an action session for this item."} theme={T} />
                 </div>
               </div>
             ))}
@@ -1249,7 +1300,7 @@ export const DriftDetection = ({ data, theme: T, onSelect, selectedItem, onActio
                       {item.type} {item.kso && `| ${item.kso}`}
                     </div>
                   </div>
-                  <ActionIcon onClick={(event) => { event.stopPropagation(); onAction?.(item); }} theme={T} />
+                  <ActionIcon onClick={(event) => { event.stopPropagation(); onAction?.(item); }} help={item.help || data?.help?.actionIcons || "Open an action session for this item."} theme={T} />
                 </div>
               </div>
             ))}
@@ -1411,6 +1462,20 @@ function parseCsvRows(text) {
     if (Object.values(record).every((value) => value === "")) throw new Error(`CSV row ${rowIndex + 2} is empty`);
     return record;
   });
+}
+
+function stableImportIdempotencyKey(entityType, filename, csvText) {
+  const normalized = csvText.replace(/\r\n/g, "\n").trim();
+  return `manual_csv:${entityType}:${filename.trim() || "manual-import.csv"}:${hashString(normalized)}`;
+}
+
+function hashString(input) {
+  let hash = 2166136261;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(36);
 }
 
 function splitCsv(text) {

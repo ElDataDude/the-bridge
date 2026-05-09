@@ -20,6 +20,7 @@
  * @property {string} [healthState] — Health indicator: "G" | "R" | "A" | "Gr" | "B" | "Bl"
  * @property {string} [healthExplain] — Reason for health state
  * @property {string} [actionTarget] — Skill/command name for drill-down
+ * @property {string} [help] — Contextual help shown beside action affordances
  * @property {Object} [metrics] — Key-value metrics snapshot
  * @property {string[]} [connections] — List of connected entity IDs
  * @property {boolean} [dimmed] — Visual emphasis flag
@@ -77,6 +78,7 @@
  * @property {string} [icon] — Icon identifier
  * @property {string} [color] — Hex color
  * @property {string} [description] — What belongs here
+ * @property {string} [help] — Accessible help text for the tab or field
  */
 
 /**
@@ -169,6 +171,9 @@
  * @property {string} [approver]
  * @property {string} [due]
  * @property {string} [reason]
+ * @property {string} [requester] — Human or agent requesting the decision
+ * @property {string} [scope] — Tenant, branch, team, or use-case scope for the decision
+ * @property {string} [consequence] — Operational consequence of approving or rejecting
  */
 
 /**
@@ -235,6 +240,7 @@
  * @property {string} name — Full name
  * @property {string} [role] — Role or title
  * @property {Object} [colors] — Color overrides {bg, text, accent, etc}
+ * @property {string} [help] — Accessible help text for the crew member
  */
 
 /**
@@ -243,6 +249,7 @@
  * @property {string} id — Tab identifier
  * @property {string} label — Display label
  * @property {string} [panel] — Panel component name or ID
+ * @property {string} [help] — Accessible help text for the tab
  */
 
 /**
@@ -251,6 +258,7 @@
  * @property {string} label — Stat label
  * @property {string|number} value — Stat value
  * @property {string} [color] — Color key
+ * @property {string} [help] — Accessible help text for the stat
  */
 
 /**
@@ -259,7 +267,9 @@
  * @property {string} id — Mode identifier (e.g. "BUILD", "RUN")
  * @property {string} label — Display label
  * @property {string} [subtitle] — Subtitle or tagline
+ * @property {string} [help] — Accessible help text for the mode
  * @property {string} [color] — Primary color
+ * @property {string} [crewHelp] — Accessible help text for the mode crew strip
  * @property {CrewMember[]} [crew] — Team members
  * @property {ModeTab[]} [tabs] — Available tabs
  * @property {ModeStat[]} [stats] — Stat summaries
@@ -287,11 +297,14 @@
  * @property {ApprovalItem[]} [data.approvals] — Human approval queue
  * @property {AuditEvent[]} [data.auditEvents] — Recent audit trail entries
  * @property {AdminIntegrationSetting[]} [data.adminIntegrations] — Admin integration settings
+ * @property {Object} [data.help] — Panel and field help copy keyed by UI area
  * @property {Outcome[]} [data.outcomes] — Strategic outcomes
  * @property {Quadrant[]} [data.quadrants] — Portfolio quadrants
  * @property {DispatcherConfig} [dispatcher] — Tenant-safe dispatcher proxy settings
  * @property {Object[]} [taskTemplates] — Templates used by dispatcher task submission
  * @property {Object} [theme] — Theme object (from theme.js)
+ * @property {Object|string} [onboarding] — Top-level onboarding callout config
+ * @property {Object} [help] — Top-level help copy keyed by UI area
  * @property {Function} [onAction] — Callback: (actionTarget, context) => void
  * @property {string} [footer] — Footer text or JSX
  */
